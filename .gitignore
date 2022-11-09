@@ -1,5 +1,5 @@
 /build
 /.xmake
 /.vscode
-/.bin
+/bin
 !settings.json
