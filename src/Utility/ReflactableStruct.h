@@ -6,7 +6,7 @@
 namespace rtti {
 //Interpret a variable's type in structure
 struct VarTypeData {
-	enum class ScaleType : vbyte {
+	enum class ScaleType : vbyte {//:定义潜在类型
 		Float,
 		Int,
 		UInt

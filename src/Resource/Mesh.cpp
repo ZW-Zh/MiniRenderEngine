@@ -1,7 +1,7 @@
 #include <Resource/Mesh.h>
 Mesh::Mesh(
 	Device* device,
-	std::span<rtti::Struct const*> vbStructs,
+	std::span<rtti::Struct const*> vbStructs,//const指针
 	uint vertexCount,
 	uint indexCount)
 	: Resource(device),

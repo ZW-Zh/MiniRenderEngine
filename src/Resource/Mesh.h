@@ -5,7 +5,7 @@
 class Mesh : public Resource {
 	std::vector<DefaultBuffer> vertexBuffers;
 	DefaultBuffer indexBuffer;
-	std::span<rtti::Struct const*> vertexStructs;
+	std::span<rtti::Struct const*> vertexStructs;//用于管理连续内存防止越界
 	std::vector<D3D12_INPUT_ELEMENT_DESC> layout;
 	uint vertexCount;
 	uint indexCount;

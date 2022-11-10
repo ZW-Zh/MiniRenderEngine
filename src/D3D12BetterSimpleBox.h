@@ -31,9 +31,11 @@ class PSOManager;
 class RasterShader;
 class CommandListHandle;
 class DefaultBuffer;
-struct Vertex : public rtti::Struct {
+struct Vertex : public rtti::Struct {//struct里按照
 	rtti::Var<XMFLOAT3> position = "POSITION";
 	rtti::Var<XMFLOAT4> color = "COLOR";
+	rtti::Var<XMFLOAT4> normal = "NORMAL";
+	rtti::Var<XMFLOAT2> texcoord= "TEXCOORD";
 };
 class D3D12BetterSimpleBox : public DXSample {
 public:
