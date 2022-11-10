@@ -80,7 +80,7 @@ void Struct::GetMeshLayout(uint slot, std::vector<D3D12_INPUT_ELEMENT_DESC>& res
 	};
 	uint offset = 0;
 	for (size_t i = 0; i < variables.size(); ++i) {
-		auto& result = resultVector.emplace_back();
+		auto& result = resultVector.emplace_back();//获得空对象的引用
 		auto& var = variables[i];
 		result = {var.semantic.c_str(),
 				  uint(var.semanticIndex),
