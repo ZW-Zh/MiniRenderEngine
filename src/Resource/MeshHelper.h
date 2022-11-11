@@ -1,37 +1,38 @@
 #include <fbxsdk.h>
 #include <DirectXMath.h>
 #include <vector>
+#include <Utility/DebugHelper.h>
 using namespace DirectX;
 
-struct Vertex
+struct m_Vertex
 {
     XMFLOAT3 position;   // Vertex positions
     XMFLOAT3 normal;    // Vertex normals
     XMFLOAT2 uv;          // Vertex UVs
     int index; // Control Point Index
 };
-struct Mesh
+struct m_Mesh
 {
-    std::vector<Vertex> vertices;
+    std::vector<m_Vertex> vertices;
 	std::vector<unsigned int> indices;
 };
 
-inline void ProcessMesh(FbxMesh* pMesh, Mesh& mesh)
+inline void ProcessMesh(FbxMesh* pMesh, m_Mesh& mesh)
 {
 
     int polygonCount = pMesh->GetPolygonCount();
     FbxVector4* controlPoints = pMesh->GetControlPoints();
     int controlPointCount = pMesh->GetControlPointsCount();
     int vertexID = 0;
-
-    for (int polygon = 0; polygon < polygonCount; polygon++)
+    OutputDebugPrintf("%d",controlPointCount);
+    for (int polygon = 0; polygon < polygonCount; polygon++)//遍历所有的面
     {
         int polyVertCount = pMesh->GetPolygonSize(polygon);
 
         for (int polyVert = 0; polyVert < polyVertCount; polyVert++)
         {
             
-            Vertex v;
+            m_Vertex v;
             int cpIndex = pMesh->GetPolygonVertex(polygon, polyVert);
             v.index = cpIndex;
             v.position = XMFLOAT3((float)controlPoints[cpIndex].mData[0],
@@ -136,7 +137,7 @@ inline void ProcessMesh(FbxMesh* pMesh, Mesh& mesh)
     }
 }
 
-inline void PrintNode(FbxNode* pNode,Mesh& mesh)
+inline void PrintNode(FbxNode* pNode,m_Mesh& mesh)
 {
    
     FbxMesh* pMesh = pNode->GetMesh();

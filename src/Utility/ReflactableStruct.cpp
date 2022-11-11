@@ -8,6 +8,7 @@ size_t VarTypeData::GetSize() const {
 Struct::Struct() {
 	curStruct = this;
 }
+
 VarTypeBase::VarTypeBase(VarTypeData&& varData) {
 	offset = curStruct->structSize;
 	//A Simple parser

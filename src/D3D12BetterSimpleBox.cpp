@@ -16,14 +16,19 @@
 #include <Resource/DefaultBuffer.h>
 #include <Shader/RasterShader.h>
 #include <Shader/PSOManager.h>
+#include <Resource/MeshHelper.h>
+#include <Utility/DebugHelper.h>
+
 D3D12BetterSimpleBox::D3D12BetterSimpleBox(uint32_t width, uint32_t height, std::wstring name)
 	: DXSample(width, height, name),
 	  m_viewport(0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height)),
 	  m_scissorRect(0, 0, static_cast<LONG>(width), static_cast<LONG>(height)) {
 }
 void D3D12BetterSimpleBox::OnInit() {
+	LoadMeshData();
 	LoadPipeline();
 	LoadAssets();
+	
 }
 
 // Load the rendering pipeline dependencies.
@@ -114,35 +119,60 @@ void D3D12BetterSimpleBox::LoadPipeline() {
 }
 static Vertex vertexSample;
 // Cube model generated from Unity3D
-static XMFLOAT3 vertices[] = {
-	XMFLOAT3(0.5, -0.5, 0.5),
-	XMFLOAT3(-0.5, -0.5, 0.5),
-	XMFLOAT3(0.5, 0.5, 0.5),
-	XMFLOAT3(-0.5, 0.5, 0.5),
-	XMFLOAT3(0.5, 0.5, -0.5),
-	XMFLOAT3(-0.5, 0.5, -0.5),
-	XMFLOAT3(0.5, -0.5, -0.5),
-	XMFLOAT3(-0.5, -0.5, -0.5),
-	XMFLOAT3(0.5, 0.5, 0.5),
-	XMFLOAT3(-0.5, 0.5, 0.5),
-	XMFLOAT3(0.5, 0.5, -0.5),
-	XMFLOAT3(-0.5, 0.5, -0.5),
-	XMFLOAT3(0.5, -0.5, -0.5),
-	XMFLOAT3(0.5, -0.5, 0.5),
-	XMFLOAT3(-0.5, -0.5, 0.5),
-	XMFLOAT3(-0.5, -0.5, -0.5),
-	XMFLOAT3(-0.5, -0.5, 0.5),
-	XMFLOAT3(-0.5, 0.5, 0.5),
-	XMFLOAT3(-0.5, 0.5, -0.5),
-	XMFLOAT3(-0.5, -0.5, -0.5),
-	XMFLOAT3(0.5, -0.5, -0.5),
-	XMFLOAT3(0.5, 0.5, -0.5),
-	XMFLOAT3(0.5, 0.5, 0.5),
-	XMFLOAT3(0.5, -0.5, 0.5)};
-static uint indices[] = {0, 2, 3, 0, 3, 1, 8, 4, 5, 8, 5, 9, 10, 6, 7, 10, 7, 11, 12, 13, 14, 12, 14, 15, 16, 17, 18, 16, 18, 19, 20, 21, 22, 20, 22, 23};
+static std::vector<XMFLOAT3> vertices;
+static std::vector<uint> indices;
+m_Mesh mesh;
+void D3D12BetterSimpleBox::LoadMeshData()
+{
+	// Change the following filename to a suitable filename value.
+    const char* lFilename = "Megaphone_01_1k.fbx";
+
+    // Initialize the SDK manager. This object handles all our memory management.
+    FbxManager* lSdkManager = FbxManager::Create();
+
+    // Create the IO settings object.
+    FbxIOSettings* ios = FbxIOSettings::Create(lSdkManager, IOSROOT);
+    lSdkManager->SetIOSettings(ios);
+
+    // Create an importer using the SDK manager.
+    FbxImporter* lImporter = FbxImporter::Create(lSdkManager, "");
+
+    // Use the first argument as the filename for the importer.
+    if (!lImporter->Initialize(lFilename, -1, lSdkManager->GetIOSettings())) {
+        OutputDebugPrintf("Call to FbxImporter::Initialize() failed.\n");
+        OutputDebugPrintf("Error returned: %s\n\n", lImporter->GetStatus().GetErrorString());
+        exit(-1);
+    }
+
+    // Create a new scene so that it can be populated by the imported file.
+    FbxScene* lScene = FbxScene::Create(lSdkManager, "myScene");
+
+    // Import the contents of the file into the scene.
+    lImporter->Import(lScene);
+
+    // The file is imported; so get rid of the importer.
+    lImporter->Destroy();
+
+    // Print the nodes of the scene and their attributes recursively.
+    // Note that we are not printing the root node because it should
+    // not contain any attributes.
+    FbxNode* lRootNode = lScene->GetRootNode();
+    
+    if (lRootNode) {
+        for (int i = 0; i < lRootNode->GetChildCount(); i++)
+            PrintNode(lRootNode->GetChild(i),mesh);
+    }
+	for(auto i : mesh.vertices)
+	{
+		vertices.push_back(i.position);
+	}
+	indices = mesh.indices;
+    // Destroy the SDK manager and all the other objects it was handling.
+    lSdkManager->Destroy();
+}
 
 static UploadBuffer* BuildCubeVertex(Device* device) {
-	constexpr size_t VERTEX_COUNT = array_count(vertices);
+	size_t VERTEX_COUNT = vertices.size();
 	std::vector<vbyte> vertexData(vertexSample.structSize * VERTEX_COUNT);
 	vbyte* vertexDataPtr = vertexData.data();
 	for (size_t i = 0; i < VERTEX_COUNT; ++i) {
@@ -156,6 +186,7 @@ static UploadBuffer* BuildCubeVertex(Device* device) {
 		vertexSample.color.Get(vertexDataPtr) = color;
 		vertexDataPtr += vertexSample.structSize;
 	}
+	
 	UploadBuffer* vertBuffer = new UploadBuffer(
 		device,
 		vertexData.size());
@@ -165,10 +196,11 @@ static UploadBuffer* BuildCubeVertex(Device* device) {
 static UploadBuffer* BuildCubeIndices(Device* device) {
 	UploadBuffer* indBuffer = new UploadBuffer(
 		device,
-		array_count(indices) * sizeof(uint));
-	indBuffer->CopyData(0, {reinterpret_cast<vbyte const*>(indices), array_count(indices) * sizeof(uint)});
+		indices.size() * sizeof(uint));
+	indBuffer->CopyData(0, {reinterpret_cast<vbyte const*>(indices.data()), indices.size() * sizeof(uint)});
 	return indBuffer;
 }
+
 // Load the sample assets.
 void D3D12BetterSimpleBox::LoadAssets() {
 	// Create mesh
@@ -189,8 +221,8 @@ void D3D12BetterSimpleBox::LoadAssets() {
 	triangleMesh = std::make_unique<Mesh>(
 		device.get(),
 		structs,
-		array_count(vertices),
-		array_count(indices));
+		vertices.size(),
+		indices.size());
 	// Copy vertex buffer to mesh
 	commandList->CopyBufferRegion(
 		triangleMesh->VertexBuffers()[0].GetResource(),

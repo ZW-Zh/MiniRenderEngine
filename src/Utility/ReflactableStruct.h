@@ -36,7 +36,7 @@ class VarTypeBase {
 	size_t offset;
 
 protected:
-	VarTypeBase(VarTypeData&& varData);
+	VarTypeBase(VarTypeData&& varData);//移动构造函数，传右值引用
 
 public:
 	size_t Offset() const { return offset; }
@@ -47,7 +47,7 @@ protected:
 	VarType(VarTypeData&& varData) : VarTypeBase(std::move(varData)) {}
 
 public:
-	T const& Get(void const* structPtr) const {
+	T const& Get(void const* structPtr) const { //常量指针，同const void*
 		size_t ptrNum = reinterpret_cast<size_t>(structPtr);
 		return *reinterpret_cast<T const*>(ptrNum + Offset());
 	}

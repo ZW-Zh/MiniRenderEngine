@@ -76,5 +76,6 @@ private:
 	std::vector<BindProperty> bindProperties;
 	void LoadPipeline();
 	void LoadAssets();
+	void LoadMeshData();
 	void PopulateCommandList(FrameResource& frameRes, uint frameIndex);
 };
