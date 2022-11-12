@@ -17,4 +17,6 @@ add_syslinks("User32", "kernel32", "Gdi32", "Shell32", "DXGI", "D3D12", "D3DComp
 after_build(function(target)
     src_path = "shader/"
     os.cp(src_path .. "*", target:targetdir() .. "/shader/")
+    os.cp("dll/" .. "*", target:targetdir() .. "/")
+    os.cp("model/" .. "*", target:targetdir() .. "/model/")
 end)

@@ -125,7 +125,7 @@ m_Mesh mesh;
 void D3D12BetterSimpleBox::LoadMeshData()
 {
 	// Change the following filename to a suitable filename value.
-    const char* lFilename = "Megaphone_01_1k.fbx";
+    const char* lFilename = "./model/Megaphone_01_1k.fbx";
 
     // Initialize the SDK manager. This object handles all our memory management.
     FbxManager* lSdkManager = FbxManager::Create();
