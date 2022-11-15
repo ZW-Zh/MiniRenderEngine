@@ -27,7 +27,7 @@ void ReadbackBuffer::CopyData(
 	D3D12_RANGE range;
 	range.Begin = offset;
 	range.End = std::min(byteSize, offset + data.size());
-	ThrowIfFailed(resource->Map(0, &range, (void**)(&mapPtr)));
+	ThrowIfFailed(resource->Map(0, &range, (void**)(&mapPtr))); //通过map改变cpu资源时会同步改变gpu资源
 	memcpy(data.data(), reinterpret_cast<vbyte const*>(mapPtr) + offset, range.End - range.Begin);
 	resource->Unmap(0, nullptr);
 }
