@@ -16,7 +16,7 @@ class RasterShader;
 class FrameResource {
 	ComPtr<ID3D12CommandAllocator> cmdAllocator;
 	ComPtr<ID3D12GraphicsCommandList> cmdList;
-	std::vector<ComPtr<ID3D12Resource>> delayDisposeResources;
+	std::vector<ComPtr<ID3D12Resource>> delayDisposeResources;//同步结束后会被清空
 	std::vector<std::function<void()>> afterSyncEvents;
 	uint64 lastFenceIndex = 0;
 	bool populated = false;
@@ -31,7 +31,7 @@ class FrameResource {
 	Visitor<UploadBuffer> tempUBVisitor;
 	Visitor<DefaultBuffer> tempVisitor;
 	Visitor<ReadbackBuffer> tempRBVisitor;
-	StackAllocator ubAlloc;
+	StackAllocator ubAlloc;//资源分配器
 	StackAllocator rbAlloc;
 	StackAllocator dbAlloc;
 	Device* device;

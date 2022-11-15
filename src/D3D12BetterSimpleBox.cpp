@@ -18,6 +18,8 @@
 #include <Shader/PSOManager.h>
 #include <Resource/MeshHelper.h>
 #include <Utility/DebugHelper.h>
+#include <Utility/DDSTextureLoader12.h>
+#include <d3d12.h>
 
 D3D12BetterSimpleBox::D3D12BetterSimpleBox(uint32_t width, uint32_t height, std::wstring name)
 	: DXSample(width, height, name),
@@ -84,6 +86,14 @@ void D3D12BetterSimpleBox::LoadPipeline() {
 		ThrowIfFailed(device->DxDevice()->CreateDescriptorHeap(&dsvHeapDesc, IID_PPV_ARGS(&m_dsvHeap)));
 
 		m_dsvDescriptorSize = device->DxDevice()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
+
+		D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
+		srvHeapDesc.NumDescriptors = 1;
+		srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+		srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+		ThrowIfFailed(device->DxDevice()->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&m_srvHeap)));
+		m_srvDescriptorSize = device->DxDevice()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+		
 	}
 
 	// Create frame resources.
@@ -125,7 +135,7 @@ m_Mesh mesh;
 void D3D12BetterSimpleBox::LoadMeshData()
 {
 	// Change the following filename to a suitable filename value.
-    const char* lFilename = "./model/Megaphone_01_1k.fbx";
+    const char* lFilename = "./model/megaphone/Megaphone_01_1k.fbx";
 
     // Initialize the SDK manager. This object handles all our memory management.
     FbxManager* lSdkManager = FbxManager::Create();
@@ -169,6 +179,10 @@ void D3D12BetterSimpleBox::LoadMeshData()
 	indices = mesh.indices;
     // Destroy the SDK manager and all the other objects it was handling.
     lSdkManager->Destroy();
+
+	//load texture
+
+	ThrowIfFailed(DirectX::LoadDDSTextureFromFile(device->DxDevice(), L"./model/megaphone/textures/Megaphone_01_diff_1k.dds", tex.ReleaseAndGetAddressOf(), ddsData, subresources));
 }
 
 static UploadBuffer* BuildCubeVertex(Device* device) {

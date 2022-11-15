@@ -18,6 +18,7 @@
 #include <Resource/Texture.h>
 #include <DXRuntime/ResourceStateTracker.h>
 #include <DXRuntime/BindProperty.h>
+#include <stdint.h>
 using namespace DirectX;
 // Note that while ComPtr is used to manage the lifetime of resources on the CPU,
 // it has no understanding of the lifetime of resources on the GPU. Apps must account
@@ -61,10 +62,20 @@ private:
 	ComPtr<ID3D12CommandQueue> m_commandQueue;
 	ComPtr<ID3D12DescriptorHeap> m_rtvHeap;
 	ComPtr<ID3D12DescriptorHeap> m_dsvHeap;
+	//着色器资源描述符
+	ComPtr<ID3D12DescriptorHeap> m_srvHeap;
+	//纹理相关
+	ComPtr<ID3D12Resource> tex;
+	std::unique_ptr<uint8_t[]> ddsData;
+	std::vector<D3D12_SUBRESOURCE_DATA> subresources;
+
 	std::unique_ptr<PSOManager> psoManager;
 	std::unique_ptr<RasterShader> colorShader;
 	uint32_t m_rtvDescriptorSize;
 	uint32_t m_dsvDescriptorSize;
+	//着色器资源描述符大小
+	uint32_t m_srvDescriptorSize;
+
 	std::unique_ptr<FrameResource> frameResources[FrameCount];
 	ResourceStateTracker stateTracker;
 	// App resources.
