@@ -15,9 +15,9 @@ class Shader {
 public:
 	struct Property {
 		ShaderVariableType type;
-		uint spaceIndex;
-		uint registerIndex;
-		uint arrSize;
+		uint spaceIndex;//寄存器空间
+		uint registerIndex;//绑定的基准着色器寄存器1 SRV t1，sampler s，UAV u，CBV b
+		uint arrSize;//描述符range中描述符个数
 	};
 protected:
 	struct InsideProperty : public Property {
@@ -27,12 +27,12 @@ protected:
 	};
 	Microsoft::WRL::ComPtr<ID3D12RootSignature> rootSig;
 	std::unordered_map<std::string, InsideProperty> properties;
-	std::optional<InsideProperty> GetProperty(std::string_view str) const;
+	std::optional<InsideProperty> GetProperty(std::string_view str) const;//c++ 17规范，用来处理对象可能为空的情况，option对象可以隐式转换为boolean类型
 
 public:
 	Shader(
 		std::span<std::pair<std::string, Property> const> properties,
-		Device* device);
+		Device* device);//内部创建了根签名
 	Shader(
 		std::span<std::pair<std::string, Property> const> properties,
 		ComPtr<ID3D12RootSignature>&& rootSig);

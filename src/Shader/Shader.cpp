@@ -1,4 +1,3 @@
-
 #include <Shader/Shader.h>
 #include <d3dcompiler.h>
 #include <Shader/GlobalSamplers.h>
@@ -24,12 +23,12 @@ Shader::Shader(
 Shader::Shader(
 	std::span<std::pair<std::string, Property> const> prop,
 	Device* device) {
-	properties.reserve(prop.size());
+	properties.reserve(prop.size()); //重置篮子个数
 	std::vector<CD3DX12_ROOT_PARAMETER> allParameter;
 	std::vector<CD3DX12_DESCRIPTOR_RANGE> allRange;
 	for (auto&& i : prop) {
 		auto&& var = i.second;
-		properties.insert_or_assign(std::move(i.first), i.second);
+		properties.insert_or_assign(std::move(i.first), i.second);//c++17 如果key存在就覆盖，不存在就插入
 		switch (var.type) {
 			case ShaderVariableType::UAVDescriptorHeap:
 			case ShaderVariableType::SRVDescriptorHeap: {
@@ -37,8 +36,9 @@ Shader::Shader(
 			} break;
 		}
 	}
+	//重新插入了内部的properties数组，类型是InsideProperty
 	size_t offset = 0;
-	for (auto&& kv : properties) {
+	for (auto&& kv : properties) {//生成描述符表
 		auto&& var = kv.second;
 
 		switch (var.type) {

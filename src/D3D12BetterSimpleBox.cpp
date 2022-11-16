@@ -27,8 +27,8 @@ D3D12BetterSimpleBox::D3D12BetterSimpleBox(uint32_t width, uint32_t height, std:
 	  m_scissorRect(0, 0, static_cast<LONG>(width), static_cast<LONG>(height)) {
 }
 void D3D12BetterSimpleBox::OnInit() {
-	LoadMeshData();
 	LoadPipeline();
+	LoadMeshData();
 	LoadAssets();
 	
 }
@@ -206,6 +206,7 @@ static UploadBuffer* BuildCubeVertex(Device* device) {
 		vertexData.size());
 	vertBuffer->CopyData(0, vertexData);
 	return vertBuffer;
+	
 }
 static UploadBuffer* BuildCubeIndices(Device* device) {
 	UploadBuffer* indBuffer = new UploadBuffer(
@@ -268,13 +269,20 @@ void D3D12BetterSimpleBox::LoadAssets() {
 	// Create the pipeline state, which includes compiling and loading shaders.
 	{
 		std::vector<std::pair<std::string, Shader::Property>> properties;
-		properties.emplace_back(
+		properties.emplace_back(//只是创建描述符
 			"_Global",
 			Shader::Property{
 				.type = ShaderVariableType::ConstantBuffer,
 				.spaceIndex = 0,
 				.registerIndex = 0,
 				.arrSize = 0});
+		properties.emplace_back(//创建纹理描述符表
+			"_Texture",
+			Shader::Property{
+				.type = ShaderVariableType::SRVDescriptorHeap,
+				.spaceIndex = 0,
+				.registerIndex = 0,
+				.arrSize = 3});
 		colorShader = std::unique_ptr<RasterShader>(
 			new RasterShader(
 				properties,
