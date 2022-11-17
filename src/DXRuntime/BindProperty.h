@@ -8,7 +8,7 @@ struct BindProperty {
 	std::variant<
 		BufferView,
 		DescriptorHeapView>
-		prop;
+		prop;//比c中的union更强大
 	BindProperty() {}
 	template<typename A, typename B>
 	requires(

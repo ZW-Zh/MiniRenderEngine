@@ -282,7 +282,7 @@ void D3D12BetterSimpleBox::LoadAssets() {
 				.type = ShaderVariableType::SRVDescriptorHeap,
 				.spaceIndex = 0,
 				.registerIndex = 0,
-				.arrSize = 3});
+				.arrSize = 1});
 		colorShader = std::unique_ptr<RasterShader>(
 			new RasterShader(
 				properties,

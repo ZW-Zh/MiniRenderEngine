@@ -193,12 +193,12 @@ void FrameResource::DrawMesh(
 		}
 	};
 	cmdList->SetGraphicsRootSignature(shader->RootSig());
-	PropertyBinder binder{
+	PropertyBinder binder{//struct初始化
 		.cmdList = cmdList.Get(),
 		.shader = shader};
 	for (auto&& i : properties) {
 		binder.name = &i.name;
-		std::visit(binder, i.prop);
+		std::visit(binder, i.prop);//访问variant对象，根据variant对象的类型，访问binder中相应的（）重载
 	}
 	cmdList->DrawIndexedInstanced(
 		mesh->IndexBuffer().GetByteSize() / 4,
