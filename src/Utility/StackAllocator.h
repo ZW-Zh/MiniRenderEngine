@@ -5,11 +5,11 @@ public:
 	virtual uint64 Allocate(uint64 size) = 0;
 	virtual void DeAllocate(uint64 handle) = 0;
 };
-class StackAllocator {
+class StackAllocator {//帧资源内部生成buffer
 	IStackAllocVisitor* visitor;
 	uint64 capacity;
 	struct Buffer {
-		uint64 handle;
+		uint64 handle;//类似对象的标识符
 		uint64 fullSize;
 		uint64 leftSize;
 	};
@@ -21,7 +21,7 @@ public:
 		IStackAllocVisitor* visitor);
 	~StackAllocator();
 	struct Chunk {
-		uint64 handle;
+		uint64 handle;//标识符
 		uint64 offset;
 	};
 	Chunk Allocate(

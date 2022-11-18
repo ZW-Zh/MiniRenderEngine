@@ -66,6 +66,8 @@ CommandListHandle FrameResource::Command() {
 	populated = true;
 	return {cmdAllocator.Get(), cmdList.Get()};
 }
+
+//visitor根据不同类用模板实现
 template<typename T>
 uint64 FrameResource::Visitor<T>::Allocate(uint64 size) {
 	auto packPtr = new T(
@@ -83,7 +85,7 @@ BufferView FrameResource::GetTempBuffer(size_t size, size_t align, StackAllocato
 			return alloc.Allocate(size);
 		}
 		return alloc.Allocate(size, align);
-	}();
+	}();//等价于chunk()
 	auto package = reinterpret_cast<UploadBuffer*>(chunk.handle);
 	return {
 		package,
@@ -92,7 +94,7 @@ BufferView FrameResource::GetTempBuffer(size_t size, size_t align, StackAllocato
 }
 
 void FrameResource::Upload(BufferView const& buffer, void const* src) {
-	auto uBuffer = GetTempBuffer(buffer.byteSize, 0, ubAlloc);
+	auto uBuffer = GetTempBuffer(buffer.byteSize, 0, ubAlloc);//创建uploadbuffer
 	static_cast<UploadBuffer const*>(uBuffer.buffer)
 		->CopyData(
 			uBuffer.offset,
@@ -180,7 +182,8 @@ void FrameResource::DrawMesh(
 					*name,
 					cmdList,
 					bfView)) {
-				throw "Invalid shader binding";
+				//throw "Invalid shader binding";
+				OutputDebugStringA("Invalid shader binding");
 			}
 		}
 		void operator()(DescriptorHeapView const& descView) const {
@@ -188,7 +191,7 @@ void FrameResource::DrawMesh(
 					*name,
 					cmdList,
 					descView)) {
-				throw "Invalid shader binding";
+				OutputDebugStringA("Invalid shader binding");
 			}
 		}
 	};
@@ -199,11 +202,18 @@ void FrameResource::DrawMesh(
 	for (auto&& i : properties) {
 		binder.name = &i.name;
 		std::visit(binder, i.prop);//访问variant对象，根据variant对象的类型，访问binder中相应的（）重载
-	}
+	}//执行设置资源
 	cmdList->DrawIndexedInstanced(
 		mesh->IndexBuffer().GetByteSize() / 4,
 		1,
 		0,
 		0,
 		0);
+}
+
+BufferView FrameResource::AllocateTextureBuffer(std::span<uint8_t const> ddsData)
+{
+	auto tempBuffer = GetTempBuffer(ddsData.size(), 0, dbAlloc);
+	Upload(tempBuffer, ddsData.data());
+	return tempBuffer;
 }

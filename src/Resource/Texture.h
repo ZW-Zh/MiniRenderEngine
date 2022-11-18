@@ -17,7 +17,7 @@ public:
 		UnorderedAccess = 0x4,
 		GenericColor = (0x4 | 0x1) // Both render target and unordered access
 	};
-	static constexpr float CLEAR_COLOR[4] = {0,0,0,0};
+	static constexpr float CLEAR_COLOR[4] = {0,0.2,0.4,1.0};
 	static constexpr float CLEAR_DEPTH = 1;
 	static constexpr uint8_t CLEAR_STENCIL = 0;
 

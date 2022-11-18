@@ -26,7 +26,7 @@ StackAllocator::Chunk StackAllocator::Allocate(uint64 targetSize) {
 	while (capacity < targetSize) {
 		capacity = std::max<uint64>(capacity + 1, capacity * 1.5);
 	}
-	auto newHandle = visitor->Allocate(capacity);
+	auto newHandle = visitor->Allocate(capacity);//得到指向uploadbuffer或defaultbuffer，readbackbuffer的指针
 	allocatedBuffers.push_back(Buffer{
 		newHandle,
 		capacity,
@@ -42,9 +42,9 @@ StackAllocator::Chunk StackAllocator::Allocate(
 	targetSize = std::max(targetSize, align);
 	Buffer* bf = nullptr;
 	uint64 offset = 0;
-	uint64 minLeftSize = std::numeric_limits<uint64>::max();
+	uint64 minLeftSize = std::numeric_limits<uint64>::max();//数值极限
 	auto CalcAlign = [](uint64 value, uint64 align) -> uint64 {
-		return (value + (align - 1)) & ~(align - 1);
+		return (value + (align - 1)) & ~(align - 1);//每个buffer的偏移量
 	};
 	struct Result {
 		uint64 offset;
@@ -57,7 +57,7 @@ StackAllocator::Chunk StackAllocator::Allocate(
 		if (afterAllocSize > size) return {};
 		return Result{alignedOffset, size - afterAllocSize};
 	};
-	for (auto&& i : allocatedBuffers) {
+	for (auto&& i : allocatedBuffers) {//遍历之前分配的内存块
 		auto result = GetLeftSize(i.leftSize, i.fullSize);
 		if (!result.has_value()) continue;
 		auto resultValue = result.value();

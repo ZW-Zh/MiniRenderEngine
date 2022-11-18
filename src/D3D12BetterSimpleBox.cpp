@@ -13,6 +13,7 @@
 #include "D3D12BetterSimpleBox.h"
 #include <DXRuntime/FrameResource.h>
 #include <Component/Camera.h>
+#include <DirectXMath.h>
 #include <Resource/DefaultBuffer.h>
 #include <Shader/RasterShader.h>
 #include <Shader/PSOManager.h>
@@ -87,6 +88,8 @@ void D3D12BetterSimpleBox::LoadPipeline() {
 
 		m_dsvDescriptorSize = device->DxDevice()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
 
+		//因为cbv用根描述符表示了，不需要创建cbv描述符堆
+		//创建srv描述符堆
 		D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
 		srvHeapDesc.NumDescriptors = 1;
 		srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
@@ -130,6 +133,8 @@ void D3D12BetterSimpleBox::LoadPipeline() {
 static Vertex vertexSample;
 // Cube model generated from Unity3D
 static std::vector<XMFLOAT3> vertices;
+static std::vector<XMFLOAT3> normals;
+static std::vector<XMFLOAT2> texcoords;
 static std::vector<uint> indices;
 m_Mesh mesh;
 void D3D12BetterSimpleBox::LoadMeshData()
@@ -175,6 +180,8 @@ void D3D12BetterSimpleBox::LoadMeshData()
 	for(auto i : mesh.vertices)
 	{
 		vertices.push_back(i.position);
+		normals.push_back(i.normal);
+		texcoords.push_back(i.uv);
 	}
 	indices = mesh.indices;
     // Destroy the SDK manager and all the other objects it was handling.
@@ -187,17 +194,23 @@ void D3D12BetterSimpleBox::LoadMeshData()
 
 static UploadBuffer* BuildCubeVertex(Device* device) {
 	size_t VERTEX_COUNT = vertices.size();
+	//存所有data
 	std::vector<vbyte> vertexData(vertexSample.structSize * VERTEX_COUNT);
 	vbyte* vertexDataPtr = vertexData.data();
+
 	for (size_t i = 0; i < VERTEX_COUNT; ++i) {
 		XMFLOAT3 vert = vertices[i];
-		vertexSample.position.Get(vertexDataPtr) = vert;
-		XMFLOAT4 color(
-			vert.x + 0.5f,
-			vert.y + 0.5f,
-			vert.z + 0.5f,
-			1);
-		vertexSample.color.Get(vertexDataPtr) = color;
+		XMFLOAT3 normal = normals[i];
+		XMFLOAT2 texcoord = texcoords[i];
+		vertexSample.position.Get(vertexDataPtr) = vert;//获取vertex地址
+		// XMFLOAT4 color(
+		// 	vert.x + 0.5f,
+		// 	vert.y + 0.5f,
+		// 	vert.z + 0.5f,
+		// 	1);
+		// vertexSample.color.Get(vertexDataPtr) = color;
+		vertexSample.normal.Get(vertexDataPtr) = normal;
+		vertexSample.texcoord.Get(vertexDataPtr) = texcoord;
 		vertexDataPtr += vertexSample.structSize;
 	}
 	
@@ -298,8 +311,12 @@ void D3D12BetterSimpleBox::LoadAssets() {
 #else
 		uint32_t compileFlags = 0;
 #endif
-		ThrowIfFailed(D3DCompileFromFile(GetAssetFullPath(L"shader/shaders.hlsl").c_str(), nullptr, nullptr, "VSMain", "vs_5_0", compileFlags, 0, &vertexShader, nullptr));
-		ThrowIfFailed(D3DCompileFromFile(GetAssetFullPath(L"shader/shaders.hlsl").c_str(), nullptr, nullptr, "PSMain", "ps_5_0", compileFlags, 0, &pixelShader, nullptr));
+		ComPtr<ID3DBlob> errorBlob = nullptr;
+		//ThrowIfFailed(D3DCompileFromFile(GetAssetFullPath(L"shader/shaders.hlsl").c_str(), nullptr, nullptr, "VSMain", "vs_5_0", compileFlags, 0, &vertexShader, &errorBlob));
+		vertexShader = CompileShader(GetAssetFullPath(L"shader/shaders.hlsl"),nullptr,"VSMain","vs_5_0");
+		//ThrowIfFailed(D3DCompileFromFile(GetAssetFullPath(L"shader/shaders.hlsl").c_str(), nullptr, nullptr, "PSMain", "ps_5_0", compileFlags, 0, &pixelShader, &errorBlob));
+		pixelShader = CompileShader(GetAssetFullPath(L"shader/shaders.hlsl"),nullptr,"PSMain","ps_5_0");
+		
 		colorShader->vsShader = std::move(vertexShader);
 		colorShader->psShader = std::move(pixelShader);
 		colorShader->rasterizeState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
@@ -385,8 +402,11 @@ void D3D12BetterSimpleBox::PopulateCommandList(FrameResource& frameRes, uint fra
 
 	Math::Matrix4 viewProjMatrix = mainCamera->Proj * mainCamera->View;
 	auto constBuffer = frameRes.AllocateConstBuffer({reinterpret_cast<uint8_t const*>(&viewProjMatrix), sizeof(viewProjMatrix)});
+	//添加纹理数据
+	auto texBuffer = frameRes.AllocateTextureBuffer({reinterpret_cast<uint8_t const*>(&ddsData), sizeof(ddsData)});
 	bindProperties.clear();
 	bindProperties.emplace_back("_Global", constBuffer);
+	bindProperties.emplace_back("_Tex",texBuffer);
 	frameRes.DrawMesh(
 		colorShader.get(),
 		psoManager.get(),

@@ -8,26 +8,36 @@
 // PURPOSE, MERCHANTABILITY, OR NON-INFRINGEMENT.
 //
 //*********************************************************
+Texture2D    _Tex : register(t0);
+SamplerState gsamPointClamp  : register(s0);
+
+struct VSInput{
+	float3 position: POSITION; 
+	//float4 color: COLOR;
+	float3 NormalL : NORMAL;
+	float2 TexC    : TEXCOORD;
+};
 
 struct PSInput {
 	float4 position : SV_POSITION;
-	float4 color : COLOR;
+	//float4 color : COLOR;
+	float2 TexC    : TEXCOORD;
 };
 cbuffer _Global : register(b0){
 	float4x4 _CameraWorldToViewMatrix;
 };
 
-PSInput VSMain(float3 position
-: POSITION, float4 color
-: COLOR) {
+
+PSInput VSMain(VSInput input) {
 	PSInput result;
 
-	result.position = mul(_CameraWorldToViewMatrix, float4(position, 1));
-	result.color = color;
+	result.position = mul(_CameraWorldToViewMatrix, float4(input.position, 1));
+	result.TexC = input.TexC;
 
 	return result;
 }
 
 float4 PSMain(PSInput input) : SV_TARGET {
-	return input.color;
+	float4 diffuseAlbedo = _Tex.Sample(gsamPointClamp, input.TexC);
+	return diffuseAlbedo;
 }

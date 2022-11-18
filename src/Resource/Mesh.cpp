@@ -13,7 +13,7 @@ Mesh::Mesh(
 	uint slotCount = 0;
 	for (auto&& i : vertexStructs) {
 		vertexBuffers.emplace_back(device, i->structSize * vertexCount);
-		i->GetMeshLayout(slotCount, layout);
+		i->GetMeshLayout(slotCount, layout);//调用内部方法
 		++slotCount;
 	}
 }

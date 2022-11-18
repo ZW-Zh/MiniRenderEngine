@@ -22,7 +22,7 @@ class FrameResource {
 	bool populated = false;
 	static constexpr size_t TEMP_SIZE = 1024ull * 1024ull;
 	template<typename T>
-	class Visitor : public IStackAllocVisitor {
+	class Visitor : public IStackAllocVisitor {//为了适应更改基类的需求
 	public:
 		FrameResource* self;
 		uint64 Allocate(uint64 size) override;
@@ -31,9 +31,9 @@ class FrameResource {
 	Visitor<UploadBuffer> tempUBVisitor;
 	Visitor<DefaultBuffer> tempVisitor;
 	Visitor<ReadbackBuffer> tempRBVisitor;
-	StackAllocator ubAlloc;//资源分配器
-	StackAllocator rbAlloc;
-	StackAllocator dbAlloc;
+	StackAllocator ubAlloc;//upload资源分配器
+	StackAllocator rbAlloc;//readback
+	StackAllocator dbAlloc;//default
 	Device* device;
 	std::vector<D3D12_VERTEX_BUFFER_VIEW> vertexBufferView;
 	BufferView GetTempBuffer(size_t size, size_t align, StackAllocator& alloc);
@@ -56,6 +56,9 @@ public:
 	void Upload(BufferView const& buffer, void const* src);
 	void Download(BufferView const& buffer, void* dst);
 	BufferView AllocateConstBuffer(std::span<uint8_t const> data);
+
+	BufferView AllocateTextureBuffer(std::span<uint8_t const> ddsData);
+
 	void CopyBuffer(
 		Buffer const* src,
 		Buffer const* dst,
