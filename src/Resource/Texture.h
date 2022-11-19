@@ -42,6 +42,11 @@ public:
 		Device* device,
 		IDXGISwapChain3* swapchain,
 		uint frame);
+	Texture(
+		Device* device,
+		TextureDimension dimension,
+		ComPtr<ID3D12Resource> resource
+		);
 	~Texture();
 	ID3D12Resource* GetResource() const override {
 		return resource.Get();

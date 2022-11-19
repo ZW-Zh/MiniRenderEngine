@@ -92,7 +92,7 @@ bool Shader::SetResource(
 	std::string_view propertyName,
 	ID3D12GraphicsCommandList* cmdList,
 	BufferView buffer) const {
-	auto var = GetProperty(propertyName);
+	auto var = GetProperty(propertyName);//去之前加入的属性名里找
 	if (!var) return false;
 	switch (var->type) {
 		case ShaderVariableType::ConstantBuffer: {
@@ -125,6 +125,8 @@ bool Shader::SetResource(
 	switch (var->type) {
 		case ShaderVariableType::UAVDescriptorHeap:
 		case ShaderVariableType::SRVDescriptorHeap: {
+			ID3D12DescriptorHeap* descriptorHeaps[] = { view.heap->GetHeap() };
+			cmdList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
 			cmdList->SetGraphicsRootDescriptorTable(
 				var->rootSigPos,
 				view.heap->hGPU(view.index));

@@ -211,9 +211,3 @@ void FrameResource::DrawMesh(
 		0);
 }
 
-BufferView FrameResource::AllocateTextureBuffer(std::span<uint8_t const> ddsData)
-{
-	auto tempBuffer = GetTempBuffer(ddsData.size(), 0, dbAlloc);
-	Upload(tempBuffer, ddsData.data());
-	return tempBuffer;
-}

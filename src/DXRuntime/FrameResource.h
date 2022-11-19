@@ -57,8 +57,6 @@ public:
 	void Download(BufferView const& buffer, void* dst);
 	BufferView AllocateConstBuffer(std::span<uint8_t const> data);
 
-	BufferView AllocateTextureBuffer(std::span<uint8_t const> ddsData);
-
 	void CopyBuffer(
 		Buffer const* src,
 		Buffer const* dst,

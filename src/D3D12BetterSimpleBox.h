@@ -18,6 +18,7 @@
 #include <Resource/Texture.h>
 #include <DXRuntime/ResourceStateTracker.h>
 #include <DXRuntime/BindProperty.h>
+#include <memory>
 #include <stdint.h>
 using namespace DirectX;
 // Note that while ComPtr is used to manage the lifetime of resources on the CPU,
@@ -59,13 +60,16 @@ private:
 	ComPtr<IDXGISwapChain3> m_swapChain;
 	std::unique_ptr<Texture> m_renderTargets[FrameCount];
 	std::unique_ptr<Texture> m_depthTargets[FrameCount];
+	std::unique_ptr<Texture> m_tex;
+
 	ComPtr<ID3D12CommandQueue> m_commandQueue;
 	ComPtr<ID3D12DescriptorHeap> m_rtvHeap;
 	ComPtr<ID3D12DescriptorHeap> m_dsvHeap;
+	std::unique_ptr<DescriptorHeap> srvDescHeap;
 	//着色器资源描述符
-	ComPtr<ID3D12DescriptorHeap> m_srvHeap;
-	//纹理相关
-	ComPtr<ID3D12Resource> tex;
+	//ComPtr<ID3D12DescriptorHeap> m_srvHeap;
+	//纹理相关,存进m_tex
+	//ComPtr<ID3D12Resource> tex;
 	std::unique_ptr<uint8_t[]> ddsData;
 	std::vector<D3D12_SUBRESOURCE_DATA> subresources;
 

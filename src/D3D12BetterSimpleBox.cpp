@@ -9,6 +9,7 @@
 //
 //*********************************************************
 #include "Metalib.h"
+#include <Resource/DescriptorHeap.h>
 #include "stdafx.h"
 #include "D3D12BetterSimpleBox.h"
 #include <DXRuntime/FrameResource.h>
@@ -21,6 +22,9 @@
 #include <Utility/DebugHelper.h>
 #include <Utility/DDSTextureLoader12.h>
 #include <d3d12.h>
+#include <memory>
+#include <utility>
+
 
 D3D12BetterSimpleBox::D3D12BetterSimpleBox(uint32_t width, uint32_t height, std::wstring name)
 	: DXSample(width, height, name),
@@ -29,9 +33,8 @@ D3D12BetterSimpleBox::D3D12BetterSimpleBox(uint32_t width, uint32_t height, std:
 }
 void D3D12BetterSimpleBox::OnInit() {
 	LoadPipeline();
-	LoadMeshData();
-	LoadAssets();
 	
+	LoadAssets();
 }
 
 // Load the rendering pipeline dependencies.
@@ -88,15 +91,19 @@ void D3D12BetterSimpleBox::LoadPipeline() {
 
 		m_dsvDescriptorSize = device->DxDevice()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
 
+		LoadMeshData();
 		//因为cbv用根描述符表示了，不需要创建cbv描述符堆
 		//创建srv描述符堆
-		D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
-		srvHeapDesc.NumDescriptors = 1;
-		srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-		srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-		ThrowIfFailed(device->DxDevice()->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&m_srvHeap)));
-		m_srvDescriptorSize = device->DxDevice()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+		// D3D12_DESCRIPTOR_HEAP_DESC srvHeapDesc = {};
+		// srvHeapDesc.NumDescriptors = 1;
+		// srvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+		// srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+		// ThrowIfFailed(device->DxDevice()->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&m_srvHeap)));
+		// m_srvDescriptorSize = device->DxDevice()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 		
+		srvDescHeap =std::unique_ptr<DescriptorHeap>(new DescriptorHeap(device.get(),D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,1,true));
+		
+		srvDescHeap->CreateSRV(m_tex->GetResource(), m_tex->GetColorSrvDesc(0), 0);
 	}
 
 	// Create frame resources.
@@ -188,8 +195,16 @@ void D3D12BetterSimpleBox::LoadMeshData()
     lSdkManager->Destroy();
 
 	//load texture
-
+	ComPtr<ID3D12Resource> tex;
 	ThrowIfFailed(DirectX::LoadDDSTextureFromFile(device->DxDevice(), L"./model/megaphone/textures/Megaphone_01_diff_1k.dds", tex.ReleaseAndGetAddressOf(), ddsData, subresources));
+	m_tex = std::unique_ptr<Texture>(
+				new Texture(
+					device.get(),
+					TextureDimension::Tex2D,
+					std::move(tex)
+				));
+	
+	
 }
 
 static UploadBuffer* BuildCubeVertex(Device* device) {
@@ -266,7 +281,6 @@ void D3D12BetterSimpleBox::LoadAssets() {
 		0,
 		indexUpload->GetByteSize());
 	// Build camera
-	
 	mainCamera = std::make_unique<Camera>();
 	mainCamera->Right = Math::Vector3(0.6877694, -1.622736E-05, 0.7259292);
 	mainCamera->Up = Math::Vector3(-0.3181089, 0.8988663, 0.301407);
@@ -275,6 +289,34 @@ void D3D12BetterSimpleBox::LoadAssets() {
 	mainCamera->SetAspect(static_cast<float>(m_scissorRect.right) / static_cast<float>(m_scissorRect.bottom));
 	mainCamera->UpdateViewMatrix();
 	mainCamera->UpdateProjectionMatrix();
+
+	//upload texture
+	const UINT64 uploadBufferSize = GetRequiredIntermediateSize(m_tex->GetResource(), 0,
+		static_cast<UINT>(subresources.size()));
+
+	// Create the GPU upload buffer.
+	CD3DX12_HEAP_PROPERTIES heapProps(D3D12_HEAP_TYPE_UPLOAD);
+
+	auto desc = CD3DX12_RESOURCE_DESC::Buffer(uploadBufferSize);
+
+	ComPtr<ID3D12Resource> uploadRes;
+	ThrowIfFailed(
+		device->DxDevice()->CreateCommittedResource(
+			&heapProps,
+			D3D12_HEAP_FLAG_NONE,
+			&desc,
+			D3D12_RESOURCE_STATE_GENERIC_READ,
+			nullptr,
+			IID_PPV_ARGS(uploadRes.GetAddressOf())));
+
+	UpdateSubresources(commandList.Get(), m_tex->GetResource(), uploadRes.Get(),
+		0, 0, static_cast<UINT>(subresources.size()), subresources.data());
+
+	auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(m_tex->GetResource(),
+		D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+	commandList->ResourceBarrier(1, &barrier);
+
+
 	ThrowIfFailed(commandList->Close());
 	// Execute CommandList
 	ID3D12CommandList* ppCommandLists[] = {commandList.Get()};
@@ -290,7 +332,7 @@ void D3D12BetterSimpleBox::LoadAssets() {
 				.registerIndex = 0,
 				.arrSize = 0});
 		properties.emplace_back(//创建纹理描述符表
-			"_Texture",
+			"_Tex",
 			Shader::Property{
 				.type = ShaderVariableType::SRVDescriptorHeap,
 				.spaceIndex = 0,
@@ -327,6 +369,8 @@ void D3D12BetterSimpleBox::LoadAssets() {
 		depthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
 		depthStencilState.StencilEnable = false;
 	}
+	
+	
 
 	// Create synchronization objects and wait until assets have been uploaded to the GPU.
 	{
@@ -341,6 +385,8 @@ void D3D12BetterSimpleBox::LoadAssets() {
 			CloseHandle(eventHandle);
 		}
 	}
+
+	
 }
 
 // Update frame-based values.
@@ -402,11 +448,11 @@ void D3D12BetterSimpleBox::PopulateCommandList(FrameResource& frameRes, uint fra
 
 	Math::Matrix4 viewProjMatrix = mainCamera->Proj * mainCamera->View;
 	auto constBuffer = frameRes.AllocateConstBuffer({reinterpret_cast<uint8_t const*>(&viewProjMatrix), sizeof(viewProjMatrix)});
-	//添加纹理数据
-	auto texBuffer = frameRes.AllocateTextureBuffer({reinterpret_cast<uint8_t const*>(&ddsData), sizeof(ddsData)});
+	
 	bindProperties.clear();
+	DescriptorHeapView descView(srvDescHeap.get());
 	bindProperties.emplace_back("_Global", constBuffer);
-	bindProperties.emplace_back("_Tex",texBuffer);
+	bindProperties.emplace_back("_Tex",descView);
 	frameRes.DrawMesh(
 		colorShader.get(),
 		psoManager.get(),

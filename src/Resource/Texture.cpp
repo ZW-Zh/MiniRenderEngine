@@ -1,3 +1,4 @@
+#include <wrl/client.h>
 #pragma vengine_package vengine_directx
 #include <Resource/Texture.h>
 #include <DXSampleHelper.h>
@@ -68,6 +69,7 @@ Texture::Texture(
 		memcpy(clearValue.Color, CLEAR_COLOR, 16);
 	}
 	clearValue.Format = format;
+	//在ddstextureloader里提交了default堆，用不了这个，重写一个texture方法
 	ThrowIfFailed(device->DxDevice()->CreateCommittedResource(
 		propPtr,
 		D3D12_HEAP_FLAG_NONE,
@@ -162,6 +164,15 @@ Texture::Texture(
 	usage = TextureUsage::RenderTarget;
 	ThrowIfFailed(swapchain->GetBuffer(frame, IID_PPV_ARGS(&resource)));
 }
+
+Texture::Texture(
+	Device* device,
+	TextureDimension dimension,
+	ComPtr<ID3D12Resource> resource
+	):Resource(device),resource(resource),dimension(dimension){
+	
+}
+
 Texture::~Texture() {
 }
 void Texture::DelayDispose(FrameResource* frameRes) const {
