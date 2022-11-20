@@ -11,7 +11,10 @@
 
 #include "stdafx.h"
 #include "Win32Application.h"
-
+#include <memory>
+#include <windef.h>
+#include <winuser.h>
+#include <WindowsX.h>
 HWND Win32Application::m_hwnd = nullptr;
 
 int Win32Application::Run(DXSample* pSample, HINSTANCE hInstance, int nCmdShow)
@@ -52,6 +55,7 @@ int Win32Application::Run(DXSample* pSample, HINSTANCE hInstance, int nCmdShow)
     // Initialize the sample. OnInit is defined in each child-implementation of DXSample.
     pSample->OnInit();
 
+    pSample->m_hwnd = m_hwnd;
     ShowWindow(m_hwnd, nCmdShow);
 
     // Main sample loop.
@@ -67,7 +71,7 @@ int Win32Application::Run(DXSample* pSample, HINSTANCE hInstance, int nCmdShow)
     }
 
     pSample->OnDestroy();
-
+    
     // Return this part of the WM_QUIT message to Windows.
     return static_cast<char>(msg.wParam);
 }
@@ -100,7 +104,7 @@ LRESULT CALLBACK Win32Application::WindowProc(HWND hWnd, uint32_t message, WPARA
             pSample->OnKeyUp(static_cast<UINT8>(wParam));
         }
         return 0;
-
+    
     case WM_PAINT:
         if (pSample)
         {
@@ -112,8 +116,30 @@ LRESULT CALLBACK Win32Application::WindowProc(HWND hWnd, uint32_t message, WPARA
     case WM_DESTROY:
         PostQuitMessage(0);
         return 0;
-    }
 
+    case WM_MOUSEMOVE:
+        if(pSample)
+        {
+            pSample->OnMouseMove(wParam,GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+        }
+        return 0;
+    case WM_LBUTTONDOWN:
+	case WM_MBUTTONDOWN:
+	case WM_RBUTTONDOWN:
+        if(pSample)
+        {
+		    pSample->OnMouseDown(wParam, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+        }
+		return 0;
+	case WM_LBUTTONUP:
+	case WM_MBUTTONUP:
+	case WM_RBUTTONUP:
+        if(pSample)
+        {
+		   pSample->OnMouseUp(wParam, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+        }
+        return 0;
+    }
     // Handle any messages the switch statement didn't.
     return DefWindowProc(hWnd, message, wParam, lParam);
 }

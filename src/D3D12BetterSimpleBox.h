@@ -48,6 +48,7 @@ public:
 	void OnUpdate() override;
 	void OnRender() override;
 	void OnDestroy() override;
+	
 	~D3D12BetterSimpleBox();
 
 private:
@@ -93,4 +94,11 @@ private:
 	void LoadAssets();
 	void LoadMeshData();
 	void PopulateCommandList(FrameResource& frameRes, uint frameIndex);
+	//键盘鼠标事件
+	void OnKeyboardInput(const GameTimer& gt);
+	virtual void OnMouseDown(WPARAM btnState, int x, int y)override;
+    virtual void OnMouseUp(WPARAM btnState, int x, int y)override;
+    virtual void OnMouseMove(WPARAM btnState, int x, int y)override;
+	//上次按下的鼠标位置
+	POINT mLastMousePos;
 };

@@ -1,7 +1,8 @@
 #pragma once
+#include <DirectXMath.h>
 #include <stdafx.h>
-#include <DXMath/DXMath.h>
-#include <DXMath/MathHelper.h>
+#include <Utility/MathHelper.h>
+
 class Camera final {
 public:
 	~Camera();
@@ -26,18 +27,27 @@ public:
 	void SetLens(float fovY, float zn, float zf);
 	void SetAspect(float aspect);
 	// Define camera space via LookAt parameters.
-	void LookAt(const Math::Vector3& pos, const Math::Vector3& target, const Math::Vector3& worldUp);
+	void LookAt(DirectX::FXMVECTOR pos, DirectX::FXMVECTOR target, DirectX::FXMVECTOR worldUp);
+	void LookAt(const DirectX::XMFLOAT3& pos, const DirectX::XMFLOAT3& target, const DirectX::XMFLOAT3& up);
+	
 	void UpdateViewMatrix();
 	void UpdateProjectionMatrix();
-	Math::Matrix4 View = MathHelper::Identity4x4();
-	Math::Matrix4 Proj = MathHelper::Identity4x4();
-	Math::Vector3 Position = {0.0f, 0.0f, 0.0f};
-	Math::Vector3 Right = {1.0f, 0.0f, 0.0f};
-	Math::Vector3 Up = {0.0f, 1.0f, 0.0f};
-	Math::Vector3 Forward = {0.0f, 0.0f, 1.0f};
+	DirectX::XMFLOAT4X4 View = MathHelper::Identity4x4();
+	DirectX::XMFLOAT4X4 Proj = MathHelper::Identity4x4();
+	DirectX::XMFLOAT3 Position = {0.0f, 0.0f, 0.0f};
+	DirectX::XMFLOAT3 Right = {1.0f, 0.0f, 0.0f};
+	DirectX::XMFLOAT3 Up = {0.0f, 1.0f, 0.0f};
+	DirectX::XMFLOAT3 Forward = {0.0f, 0.0f, 1.0f};
 	float orthoSize = 5;
 	bool isOrtho = false;
 
+	// Strafe/Walk the camera a distance d.
+	void Strafe(float d);//左右平移
+	void Walk(float d);//上下移动
+	
+	// Rotate the camera.
+	void Pitch(float angle);//上下旋转
+	void RotateY(float angle);//左右旋转
 private:
 	float mNearZ = 0.0f;
 	float mFarZ = 0.0f;

@@ -22,8 +22,10 @@
 #include <Utility/DebugHelper.h>
 #include <Utility/DDSTextureLoader12.h>
 #include <d3d12.h>
+#include <debugapi.h>
 #include <memory>
 #include <utility>
+#include <winuser.h>
 
 
 D3D12BetterSimpleBox::D3D12BetterSimpleBox(uint32_t width, uint32_t height, std::wstring name)
@@ -282,10 +284,10 @@ void D3D12BetterSimpleBox::LoadAssets() {
 		indexUpload->GetByteSize());
 	// Build camera
 	mainCamera = std::make_unique<Camera>();
-	mainCamera->Right = Math::Vector3(0.6877694, -1.622736E-05, 0.7259292);
-	mainCamera->Up = Math::Vector3(-0.3181089, 0.8988663, 0.301407);
-	mainCamera->Forward = Math::Vector3(-0.6525182, -0.438223, 0.6182076);
-	mainCamera->Position = Math::Vector3(2.232773, 1.501817, -1.883978);
+	mainCamera->Right = DirectX::XMFLOAT3(0.6877694, -1.622736E-05, 0.7259292);
+	mainCamera->Up = DirectX::XMFLOAT3(-0.3181089, 0.8988663, 0.301407);
+	mainCamera->Forward = DirectX::XMFLOAT3(-0.6525182, -0.438223, 0.6182076);
+	mainCamera->Position = DirectX::XMFLOAT3(2.232773, 1.501817, -1.883978);
 	mainCamera->SetAspect(static_cast<float>(m_scissorRect.right) / static_cast<float>(m_scissorRect.bottom));
 	mainCamera->UpdateViewMatrix();
 	mainCamera->UpdateProjectionMatrix();
@@ -385,12 +387,12 @@ void D3D12BetterSimpleBox::LoadAssets() {
 			CloseHandle(eventHandle);
 		}
 	}
-
-	
 }
 
 // Update frame-based values.
 void D3D12BetterSimpleBox::OnUpdate() {
+	OnKeyboardInput(mTimer);
+	OutputDebugPrintf("CameraPos:%f,%f,%f\n",mainCamera->Position.x,mainCamera->Position.y,mainCamera->Position.z);
 }
 
 // Render the scene.
@@ -446,7 +448,9 @@ void D3D12BetterSimpleBox::PopulateCommandList(FrameResource& frameRes, uint fra
 	DXGI_FORMAT colorFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
 	DXGI_FORMAT depthFormat = DXGI_FORMAT_D32_FLOAT;
 
-	Math::Matrix4 viewProjMatrix = mainCamera->Proj * mainCamera->View;
+	DirectX::XMFLOAT4X4 viewProjMatrix; 
+	//交换矩阵乘法的顺序
+	DirectX::XMStoreFloat4x4(&viewProjMatrix, DirectX::XMMatrixMultiply(DirectX::XMLoadFloat4x4(&mainCamera->View),DirectX::XMLoadFloat4x4(&mainCamera->Proj)));
 	auto constBuffer = frameRes.AllocateConstBuffer({reinterpret_cast<uint8_t const*>(&viewProjMatrix), sizeof(viewProjMatrix)});
 	
 	bindProperties.clear();
@@ -463,3 +467,51 @@ void D3D12BetterSimpleBox::PopulateCommandList(FrameResource& frameRes, uint fra
 	stateTracker.RestoreState(cmdList);
 }
 D3D12BetterSimpleBox::~D3D12BetterSimpleBox() {}
+
+void D3D12BetterSimpleBox::OnKeyboardInput(const GameTimer& gt)
+{
+	const float dt = gt.DeltaTime();
+
+	if(GetAsyncKeyState('S') & 0x8000)
+		mainCamera->Walk(0.05f*dt);
+
+	if(GetAsyncKeyState('W') & 0x8000)
+		mainCamera->Walk(-0.05f*dt);
+
+	if(GetAsyncKeyState('D') & 0x8000)
+		mainCamera->Strafe(-0.05f*dt);
+
+	if(GetAsyncKeyState('A') & 0x8000)
+		mainCamera->Strafe(0.05f*dt);
+
+	mainCamera->UpdateViewMatrix();
+}
+
+void D3D12BetterSimpleBox::OnMouseDown(WPARAM btnState, int x, int y)
+{
+    mLastMousePos.x = x;
+    mLastMousePos.y = y;
+    SetCapture(m_hwnd);
+}
+
+void D3D12BetterSimpleBox::OnMouseUp(WPARAM btnState, int x, int y)
+{
+    ReleaseCapture();
+}
+
+void D3D12BetterSimpleBox::OnMouseMove(WPARAM btnState, int x, int y)
+{
+    if((btnState & MK_LBUTTON) != 0)
+    {
+		// Make each pixel correspond to a quarter of a degree.
+		float dx = XMConvertToRadians(0.05f*static_cast<float>(x - mLastMousePos.x));
+		float dy = XMConvertToRadians(0.05f*static_cast<float>(y - mLastMousePos.y));
+
+		mainCamera->Pitch(dy);
+		mainCamera->RotateY(dx);
+    }
+
+    mLastMousePos.x = x;
+    mLastMousePos.y = y;
+	mainCamera->UpdateViewMatrix();
+}

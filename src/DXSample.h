@@ -13,7 +13,9 @@
 
 #include "DXSampleHelper.h"
 #include "Win32Application.h"
-
+#include <memory>
+#include <windef.h>
+#include <Utility/GameTimer.h>
 class DXSample
 {
 public:
@@ -28,6 +30,9 @@ public:
     // Samples override the event handlers to handle specific messages.
     virtual void OnKeyDown(UINT8 /*key*/)   {}
     virtual void OnKeyUp(UINT8 /*key*/)     {}
+    virtual void OnMouseDown(WPARAM btnState, int x, int y){ }
+	virtual void OnMouseUp(WPARAM btnState, int x, int y)  { }
+	virtual void OnMouseMove(WPARAM btnState, int x, int y){ }
 
     // Accessors.
     uint32_t GetWidth() const           { return m_width; }
@@ -35,7 +40,8 @@ public:
     const wchar_t* GetTitle() const   { return m_title.c_str(); }
 
     void ParseCommandLineArgs(_In_reads_(argc) wchar_t* argv[], int argc);
-
+    HWND m_hwnd;
+    
 protected:
     std::wstring GetAssetFullPath(LPCWSTR assetName);
 
@@ -54,6 +60,7 @@ protected:
     // Adapter info.
     bool m_useWarpDevice;
 
+    GameTimer mTimer;
 private:
     // Root assets path.
     std::wstring m_assetsPath;
