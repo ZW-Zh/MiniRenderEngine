@@ -21,6 +21,7 @@
 #include <Resource/MeshHelper.h>
 #include <Utility/DebugHelper.h>
 #include <Utility/DDSTextureLoader12.h>
+#include <algorithm>
 #include <d3d12.h>
 #include <debugapi.h>
 #include <memory>
@@ -182,8 +183,16 @@ static std::vector<uint> indices;
 m_Mesh mesh;
 void D3D12BetterSimpleBox::LoadMeshData()
 {
+	loadModel("./model/a/a.fbx", mesh);
+	for(auto v : mesh.vertices)
+	{
+		vertices.push_back(v.position);
+		normals.push_back(v.normal);
+		texcoords.push_back(v.uv);
+	}
+	indices.assign(mesh.indices.begin(),mesh.indices.end());
 	
-	
+
 	//load texture
 	ComPtr<ID3D12Resource> tex;
 	ThrowIfFailed(DirectX::LoadDDSTextureFromFile(device->DxDevice(), L"./model/a/textures/a.dds", tex.ReleaseAndGetAddressOf(), ddsData, subresources));
