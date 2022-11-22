@@ -5,7 +5,7 @@
 using namespace DirectX;
 
 Camera::Camera() {
-	SetLens(0.25f * MathHelper::Pi, 1.0f, 1000.0f);
+	SetLens(0.25f * MathHelper::Pi, 0.05f, 1000.0f);
 }
 Camera::~Camera() {
 }

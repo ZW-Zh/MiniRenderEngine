@@ -33,7 +33,7 @@ public:
     virtual void OnMouseDown(WPARAM btnState, int x, int y){ }
 	virtual void OnMouseUp(WPARAM btnState, int x, int y)  { }
 	virtual void OnMouseMove(WPARAM btnState, int x, int y){ }
-
+	
     // Accessors.
     uint32_t GetWidth() const           { return m_width; }
     uint32_t GetHeight() const          { return m_height; }

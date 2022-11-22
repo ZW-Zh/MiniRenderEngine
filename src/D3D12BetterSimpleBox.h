@@ -20,6 +20,9 @@
 #include <DXRuntime/BindProperty.h>
 #include <memory>
 #include <stdint.h>
+#include <imgui/imgui_impl_dx12.h>
+#include <imgui/imgui_impl_win32.h>
+
 using namespace DirectX;
 // Note that while ComPtr is used to manage the lifetime of resources on the CPU,
 // it has no understanding of the lifetime of resources on the GPU. Apps must account
@@ -35,7 +38,7 @@ class CommandListHandle;
 class DefaultBuffer;
 struct Vertex : public rtti::Struct {//struct里按照
 	rtti::Var<XMFLOAT3> position = "POSITION";
-	//rtti::Var<XMFLOAT4> color = "COLOR";
+	rtti::Var<XMFLOAT4> color = "COLOR";
 	rtti::Var<XMFLOAT3> normal = "NORMAL";
 	rtti::Var<XMFLOAT2> texcoord= "TEXCOORD";
 };
@@ -50,7 +53,7 @@ public:
 	void OnDestroy() override;
 	
 	~D3D12BetterSimpleBox();
-
+	
 private:
 	static const uint32_t FrameCount = 3;
 	std::unique_ptr<Device> device;
@@ -101,4 +104,9 @@ private:
     virtual void OnMouseMove(WPARAM btnState, int x, int y)override;
 	//上次按下的鼠标位置
 	POINT mLastMousePos;
+
+	//imgui
+	void ImGUIInit();
+	void ImGUIRender();
+	void ImGUIDestory();
 };

@@ -15,6 +15,7 @@
 #include <windef.h>
 #include <winuser.h>
 #include <WindowsX.h>
+
 HWND Win32Application::m_hwnd = nullptr;
 
 int Win32Application::Run(DXSample* pSample, HINSTANCE hInstance, int nCmdShow)
@@ -53,9 +54,9 @@ int Win32Application::Run(DXSample* pSample, HINSTANCE hInstance, int nCmdShow)
         pSample);
 
     // Initialize the sample. OnInit is defined in each child-implementation of DXSample.
+    pSample->m_hwnd = m_hwnd;
     pSample->OnInit();
 
-    pSample->m_hwnd = m_hwnd;
     ShowWindow(m_hwnd, nCmdShow);
 
     // Main sample loop.

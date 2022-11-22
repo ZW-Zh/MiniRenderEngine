@@ -35,8 +35,42 @@ D3D12BetterSimpleBox::D3D12BetterSimpleBox(uint32_t width, uint32_t height, std:
 }
 void D3D12BetterSimpleBox::OnInit() {
 	LoadPipeline();
-	
 	LoadAssets();
+	//ImGUIInit();
+}
+// Render the scene.
+void D3D12BetterSimpleBox::OnRender() {
+	// Record all the commands we need to render the scene into the command list.
+	auto curFrame = m_backBufferIndex;
+	auto nextFrame = (curFrame + 1) % FrameCount;
+	auto lastFrame = (nextFrame + 1) % FrameCount;
+	// Execute and Present
+	frameResources[curFrame]->Execute(
+		m_commandQueue.Get(),
+		m_fence.Get(),
+		m_fenceValue);
+	ThrowIfFailed(m_swapChain->Present(0, 0));
+	m_backBufferIndex = (m_backBufferIndex + 1) % FrameCount;
+	// Signal Frame
+	frameResources[curFrame]->Signal(
+		m_commandQueue.Get(),
+		m_fence.Get());
+	// Populate next frame
+	PopulateCommandList(*frameResources[nextFrame], nextFrame);
+	// Sync last frame
+	frameResources[lastFrame]->Sync(
+		m_fence.Get());
+
+	// Present the frame.
+	//ImGUIRender();
+}
+
+void D3D12BetterSimpleBox::OnDestroy() {
+	//ImGUIDestory();
+	// Sync all frame
+	for (auto&& i : frameResources) {
+		i->Sync(m_fence.Get());
+	}
 }
 
 // Load the rendering pipeline dependencies.
@@ -148,57 +182,11 @@ static std::vector<uint> indices;
 m_Mesh mesh;
 void D3D12BetterSimpleBox::LoadMeshData()
 {
-	// Change the following filename to a suitable filename value.
-    const char* lFilename = "./model/megaphone/Megaphone_01_1k.fbx";
-
-    // Initialize the SDK manager. This object handles all our memory management.
-    FbxManager* lSdkManager = FbxManager::Create();
-
-    // Create the IO settings object.
-    FbxIOSettings* ios = FbxIOSettings::Create(lSdkManager, IOSROOT);
-    lSdkManager->SetIOSettings(ios);
-
-    // Create an importer using the SDK manager.
-    FbxImporter* lImporter = FbxImporter::Create(lSdkManager, "");
-
-    // Use the first argument as the filename for the importer.
-    if (!lImporter->Initialize(lFilename, -1, lSdkManager->GetIOSettings())) {
-        OutputDebugPrintf("Call to FbxImporter::Initialize() failed.\n");
-        OutputDebugPrintf("Error returned: %s\n\n", lImporter->GetStatus().GetErrorString());
-        exit(-1);
-    }
-
-    // Create a new scene so that it can be populated by the imported file.
-    FbxScene* lScene = FbxScene::Create(lSdkManager, "myScene");
-
-    // Import the contents of the file into the scene.
-    lImporter->Import(lScene);
-
-    // The file is imported; so get rid of the importer.
-    lImporter->Destroy();
-
-    // Print the nodes of the scene and their attributes recursively.
-    // Note that we are not printing the root node because it should
-    // not contain any attributes.
-    FbxNode* lRootNode = lScene->GetRootNode();
-    
-    if (lRootNode) {
-        for (int i = 0; i < lRootNode->GetChildCount(); i++)
-            PrintNode(lRootNode->GetChild(i),mesh);
-    }
-	for(auto i : mesh.vertices)
-	{
-		vertices.push_back(i.position);
-		normals.push_back(i.normal);
-		texcoords.push_back(i.uv);
-	}
-	indices = mesh.indices;
-    // Destroy the SDK manager and all the other objects it was handling.
-    lSdkManager->Destroy();
-
+	
+	
 	//load texture
 	ComPtr<ID3D12Resource> tex;
-	ThrowIfFailed(DirectX::LoadDDSTextureFromFile(device->DxDevice(), L"./model/megaphone/textures/Megaphone_01_diff_1k.dds", tex.ReleaseAndGetAddressOf(), ddsData, subresources));
+	ThrowIfFailed(DirectX::LoadDDSTextureFromFile(device->DxDevice(), L"./model/a/textures/a.dds", tex.ReleaseAndGetAddressOf(), ddsData, subresources));
 	m_tex = std::unique_ptr<Texture>(
 				new Texture(
 					device.get(),
@@ -220,12 +208,12 @@ static UploadBuffer* BuildCubeVertex(Device* device) {
 		XMFLOAT3 normal = normals[i];
 		XMFLOAT2 texcoord = texcoords[i];
 		vertexSample.position.Get(vertexDataPtr) = vert;//获取vertex地址
-		// XMFLOAT4 color(
-		// 	vert.x + 0.5f,
-		// 	vert.y + 0.5f,
-		// 	vert.z + 0.5f,
-		// 	1);
-		// vertexSample.color.Get(vertexDataPtr) = color;
+		XMFLOAT4 color(
+			vert.x + 0.5f,
+			vert.y + 0.5f,
+			vert.z + 0.5f,
+			1);
+		vertexSample.color.Get(vertexDataPtr) = color;
 		vertexSample.normal.Get(vertexDataPtr) = normal;
 		vertexSample.texcoord.Get(vertexDataPtr) = texcoord;
 		vertexDataPtr += vertexSample.structSize;
@@ -364,6 +352,8 @@ void D3D12BetterSimpleBox::LoadAssets() {
 		colorShader->vsShader = std::move(vertexShader);
 		colorShader->psShader = std::move(pixelShader);
 		colorShader->rasterizeState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+		//线框模式
+		//colorShader->rasterizeState.FillMode = D3D12_FILL_MODE_WIREFRAME;
 		colorShader->blendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
 		auto&& depthStencilState = colorShader->depthStencilState;
 		depthStencilState.DepthEnable = true;
@@ -371,8 +361,6 @@ void D3D12BetterSimpleBox::LoadAssets() {
 		depthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
 		depthStencilState.StencilEnable = false;
 	}
-	
-	
 
 	// Create synchronization objects and wait until assets have been uploaded to the GPU.
 	{
@@ -392,41 +380,9 @@ void D3D12BetterSimpleBox::LoadAssets() {
 // Update frame-based values.
 void D3D12BetterSimpleBox::OnUpdate() {
 	OnKeyboardInput(mTimer);
-	OutputDebugPrintf("CameraPos:%f,%f,%f\n",mainCamera->Position.x,mainCamera->Position.y,mainCamera->Position.z);
+	//OutputDebugPrintf("CameraPos:%f,%f,%f\n",mainCamera->Position.x,mainCamera->Position.y,mainCamera->Position.z);
 }
 
-// Render the scene.
-void D3D12BetterSimpleBox::OnRender() {
-	// Record all the commands we need to render the scene into the command list.
-	auto curFrame = m_backBufferIndex;
-	auto nextFrame = (curFrame + 1) % FrameCount;
-	auto lastFrame = (nextFrame + 1) % FrameCount;
-	// Execute and Present
-	frameResources[curFrame]->Execute(
-		m_commandQueue.Get(),
-		m_fence.Get(),
-		m_fenceValue);
-	ThrowIfFailed(m_swapChain->Present(0, 0));
-	m_backBufferIndex = (m_backBufferIndex + 1) % FrameCount;
-	// Signal Frame
-	frameResources[curFrame]->Signal(
-		m_commandQueue.Get(),
-		m_fence.Get());
-	// Populate next frame
-	PopulateCommandList(*frameResources[nextFrame], nextFrame);
-	// Sync last frame
-	frameResources[lastFrame]->Sync(
-		m_fence.Get());
-
-	// Present the frame.
-}
-
-void D3D12BetterSimpleBox::OnDestroy() {
-	// Sync all frame
-	for (auto&& i : frameResources) {
-		i->Sync(m_fence.Get());
-	}
-}
 
 void D3D12BetterSimpleBox::PopulateCommandList(FrameResource& frameRes, uint frameIndex) {
 	auto cmdListHandle = frameRes.Command();
@@ -515,3 +471,39 @@ void D3D12BetterSimpleBox::OnMouseMove(WPARAM btnState, int x, int y)
     mLastMousePos.y = y;
 	mainCamera->UpdateViewMatrix();
 }
+
+void D3D12BetterSimpleBox::ImGUIInit()
+{
+	// Setup Dear ImGui context
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+	// Setup Dear ImGui style
+    ImGui::StyleColorsLight();
+	// Setup Platform/Renderer backends
+    ImGui_ImplWin32_Init(m_hwnd);
+    ImGui_ImplDX12_Init(device->DxDevice(), FrameCount,
+        DXGI_FORMAT_R8G8B8A8_UNORM, srvDescHeap->GetHeap(),
+        srvDescHeap->GetHeap()->GetCPUDescriptorHandleForHeapStart(),
+        srvDescHeap->GetHeap()->GetGPUDescriptorHandleForHeapStart());
+}
+
+void D3D12BetterSimpleBox::ImGUIRender()
+{
+	// Start the Dear ImGui frame
+    ImGui_ImplDX12_NewFrame();
+    ImGui_ImplWin32_NewFrame();
+    ImGui::NewFrame();
+	bool show_demo_window = true;
+	ImGui::ShowDemoWindow(&show_demo_window);
+	// Rendering
+    ImGui::Render();
+}
+
+void D3D12BetterSimpleBox::ImGUIDestory()
+{
+	// Cleanup
+    ImGui_ImplDX12_Shutdown();
+    ImGui_ImplWin32_Shutdown();
+    ImGui::DestroyContext();
+}
+

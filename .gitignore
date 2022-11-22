@@ -4,5 +4,4 @@
 /bin
 !settings.json
 /.cache
-/dll
 /model
