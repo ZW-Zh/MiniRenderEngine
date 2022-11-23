@@ -289,7 +289,7 @@ public:
     
     void createTexture(ID3D12Device* md3dDevice)
     {
-        ThrowIfFailed(DirectX::LoadDDSTextureFromFile(md3dDevice, L"./model/a/textures/a.dds", Resource.ReleaseAndGetAddressOf(), ddsData, subresources));
+        ThrowIfFailed(DirectX::LoadDDSTextureFromFile(md3dDevice, Filename.c_str(), Resource.ReleaseAndGetAddressOf(), ddsData, subresources));
     }
 
     void uploadTex(ID3D12Device* md3dDevice, ID3D12GraphicsCommandList* cmdList)

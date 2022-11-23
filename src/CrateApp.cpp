@@ -200,7 +200,7 @@ void CrateApp::OnResize()
     D3DApp::OnResize();
 
     // The window resized, so update the aspect ratio and recompute the projection matrix.
-    XMMATRIX P = XMMatrixPerspectiveFovLH(0.25f*MathHelper::Pi, AspectRatio(), 1.0f, 1000.0f);
+    XMMATRIX P = XMMatrixPerspectiveFovLH(0.25f*MathHelper::Pi, AspectRatio(), 0.05f, 100.0f);
     XMStoreFloat4x4(&mProj, P);
 }
 
@@ -327,7 +327,7 @@ void CrateApp::OnMouseMove(WPARAM btnState, int x, int y)
         mRadius += dx - dy;
 
         // Restrict the radius.
-        mRadius = MathHelper::Clamp(mRadius, 1.0f, 150.0f);
+        mRadius = MathHelper::Clamp(mRadius, 0.1f, 150.0f);
     }
 
     mLastMousePos.x = x;
@@ -428,7 +428,7 @@ void CrateApp::UpdateMainPassCB(const GameTimer& gt)
 	mMainPassCB.EyePosW = mEyePos;
 	mMainPassCB.RenderTargetSize = XMFLOAT2((float)mClientWidth, (float)mClientHeight);
 	mMainPassCB.InvRenderTargetSize = XMFLOAT2(1.0f / mClientWidth, 1.0f / mClientHeight);
-	mMainPassCB.NearZ = 1.0f;
+	mMainPassCB.NearZ = 0.1f;
 	mMainPassCB.FarZ = 1000.0f;
 	mMainPassCB.TotalTime = gt.TotalTime();
 	mMainPassCB.DeltaTime = gt.DeltaTime();
@@ -448,7 +448,7 @@ void CrateApp::LoadTextures()
 {
 	auto breadTex = std::make_unique<Texture>();
 	breadTex->Name = "breadTex";
-	breadTex->Filename = L"./model/a/textures/a.dds";
+	breadTex->Filename = L"./model/megaphone/textures/Megaphone_01_diff_1k.dds";
 	
 	//load texture
 	breadTex->createTexture(md3dDevice.Get());
@@ -543,7 +543,7 @@ void CrateApp::BuildShadersAndInputLayout()
 void CrateApp::BuildShapeGeometry()
 {
 	m_Mesh mesh;
-	loadModel("./model/a/a.fbx", mesh);
+	loadModel("./model/megaphone/Megaphone_01_1k.fbx", mesh);
 	SubmeshGeometry breadSubmesh;
 	breadSubmesh.IndexCount = mesh.indices.size();
 	breadSubmesh.StartIndexLocation = 0;
