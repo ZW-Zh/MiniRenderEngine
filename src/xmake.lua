@@ -1,5 +1,5 @@
 BuildProject({
-    projectName = "Better-SimpleBox",
+    projectName = "CreepEngine",
     projectType = "binary",
     debugEvent = function()
         add_defines("_DEBUG")

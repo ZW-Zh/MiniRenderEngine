@@ -1,4 +1,3 @@
-//#include <fbxsdk.h>
 #include <DirectXMath.h>
 #include <vector>
 #include <Utility/DebugHelper.h>
@@ -49,13 +48,14 @@ static void processNode(aiNode *node, const aiScene *scene,m_Mesh& m_mesh)
             
             m_mesh.vertices.push_back(vertex);
         }
-
+        //indices
         for(unsigned int i = 0; i < mesh->mNumFaces; i++)
         {
             aiFace face = mesh->mFaces[i];
             for(unsigned int j = 0; j < face.mNumIndices; j++)
                 m_mesh.indices.push_back(face.mIndices[j]);
         }
+        //texture,能找到贴图名字
     }
     // 接下来对它的子节点重复这一过程
     for(unsigned int i = 0; i < node->mNumChildren; i++)
