@@ -183,7 +183,6 @@ bool CreepApp::Initialize()
 	// so we have to query this information.
     mCbvSrvDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
- 
 	LoadTextures();
     BuildRootSignature();
 	BuildDescriptorHeaps();
@@ -303,18 +302,7 @@ void CreepApp::Draw(const GameTimer& gt)
     ImGui_ImplWin32_NewFrame();
     ImGui::NewFrame();
 
-	{
-        static int counter = 0;
-        ImGui::Begin("Hello, world!");                          // Create a window called "Hello, world!" and append into it.
-        ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
-        ImGui::SliderFloat("float", &mPhi, 0.1f, 1.0f);            // Edit 1 float using a slider from 0.0f to 1.0f
-        if (ImGui::Button("Button"))                            // Buttons return true when clicked (most widgets return true when edited/activated)
-            counter++;
-        ImGui::SameLine();
-        ImGui::Text("counter = %d", counter);
-        ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
-        ImGui::End();
-	}
+	Gui::setGUI();
   
   	ImGui::Render();
   	ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), mCommandList.Get());
