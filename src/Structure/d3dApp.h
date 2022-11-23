@@ -6,6 +6,7 @@
 
 #include "d3dUtil.h"
 #include "Utility/GameTimer.h"
+#include "Component/Gui.h"
 
 class D3DApp
 {
@@ -37,7 +38,7 @@ protected:
 	virtual void OnResize(); 
 	virtual void Update(const GameTimer& gt)=0;
     virtual void Draw(const GameTimer& gt)=0;
-
+    
 	// Convenience overrides for handling mouse input.
 	virtual void OnMouseDown(WPARAM btnState, int x, int y){ }
 	virtual void OnMouseUp(WPARAM btnState, int x, int y)  { }
@@ -99,7 +100,7 @@ protected:
 
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mRtvHeap;
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> mDsvHeap;
-
+    
     D3D12_VIEWPORT mScreenViewport; 
     D3D12_RECT mScissorRect;
 

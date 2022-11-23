@@ -9,11 +9,15 @@ using Microsoft::WRL::ComPtr;
 using namespace std;
 using namespace DirectX;
 
+// Forward declare message handler from imgui_impl_win32.cpp
+extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
 LRESULT CALLBACK
 MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
 	// Forward hwnd on because we can get messages (e.g., WM_CREATE)
 	// before CreateWindow returns, and thus before mhMainWnd is valid.
+	
     return D3DApp::GetApp()->MsgProc(hwnd, msg, wParam, lParam);
 }
 
@@ -35,6 +39,21 @@ D3DApp::~D3DApp()
 {
 	if(md3dDevice != nullptr)
 		FlushCommandQueue();
+	
+	for (UINT i = 0; i < SwapChainBufferCount; i++)
+        if (mSwapChainBuffer[i]) { mSwapChainBuffer[i]->Release(); mSwapChainBuffer[i].Detach(); }
+	if (mSwapChain) { mSwapChain->SetFullscreenState(false, NULL); mSwapChain->Release(); mSwapChain.Detach(); }
+    if(mDepthStencilBuffer){mDepthStencilBuffer->Release();mDepthStencilBuffer.Detach();}
+   	if (mDirectCmdListAlloc) { mDirectCmdListAlloc->Release(); mDirectCmdListAlloc.Detach(); }
+    if (mCommandQueue) { mCommandQueue->Release(); mCommandQueue.Detach(); }
+    if (mCommandList) { mCommandList->Release(); mCommandList.Detach(); }
+    if (mRtvHeap) { mRtvHeap->Release(); mRtvHeap.Detach(); }
+    if (mDsvHeap) { mDsvHeap->Release(); mDsvHeap.Detach(); }
+    if (mFence) { mFence->Release(); mFence.Detach(); }
+	 //if (md3dDevice) { md3dDevice->Release(); md3dDevice->Release(); }
+
+	DestroyWindow(mhMainWnd);
+    UnregisterClassW(L"MainWnd", mhAppInst);
 }
 
 HINSTANCE D3DApp::AppInst()const
@@ -114,7 +133,7 @@ bool D3DApp::Initialize()
 
     // Do the initial resize code.
     OnResize();
-
+   
 	return true;
 }
  
@@ -136,6 +155,8 @@ void D3DApp::CreateRtvAndDsvDescriptorHeaps()
 	dsvHeapDesc.NodeMask = 0;
     ThrowIfFailed(md3dDevice->CreateDescriptorHeap(
         &dsvHeapDesc, IID_PPV_ARGS(mDsvHeap.GetAddressOf())));
+
+    
 }
 
 void D3DApp::OnResize()
@@ -225,6 +246,10 @@ void D3DApp::OnResize()
  
 LRESULT D3DApp::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
+	//让imgui能够处理窗口消息
+	if (ImGui_ImplWin32_WndProcHandler(hwnd, msg, wParam, lParam))
+		return true;
+
 	switch( msg )
 	{
 	// WM_ACTIVATE is sent when the window is activated or deactivated.  
