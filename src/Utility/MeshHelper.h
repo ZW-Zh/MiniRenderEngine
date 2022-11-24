@@ -1,6 +1,6 @@
 #include <DirectXMath.h>
 #include <vector>
-#include <Utility/DebugHelper.h>
+#include <iostream>
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
@@ -69,10 +69,10 @@ static void loadModel(std::string fileName, m_Mesh& mesh)
     const aiScene *scene = importer.ReadFile(fileName, aiProcess_Triangulate | aiProcess_FlipUVs);//处理为全三角形和翻转y轴坐标
     if(!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode) 
     {
-        OutputDebugPrintf("ERROR::ASSIMP::%s", importer.GetErrorString());
+        std::cout<< "ERROR::ASSIMP::%s"<< importer.GetErrorString()<< std::endl;
         return;
     }
+    processNode(scene->mRootNode, scene, mesh);
     
 
-    processNode(scene->mRootNode, scene, mesh);
 }

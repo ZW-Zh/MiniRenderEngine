@@ -7,6 +7,8 @@
 #include "Structure/UploadBuffer.h"
 #include "FrameResource.h"
 #include "Utility/MeshHelper.h"
+#include <debugapi.h>
+#include <string>
 #include <winuser.h>
 
 using Microsoft::WRL::ComPtr;
@@ -75,11 +77,11 @@ private:
 	void UpdateMaterialCBs(const GameTimer& gt);
 	void UpdateMainPassCB(const GameTimer& gt);
 
-	void LoadTextures();
+	void LoadTexAndGeo(int modelIndex);
     void BuildRootSignature();
 	void BuildDescriptorHeaps();
     void BuildShadersAndInputLayout();
-    void BuildShapeGeometry();
+    //void BuildShapeGeometry();
     void BuildPSOs();
     void BuildFrameResources();
     void BuildMaterials();
@@ -126,6 +128,8 @@ private:
 	float mRadius = 2.5f;
 
     POINT mLastMousePos;
+
+	int lastModelIndex = -1;
 };
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
@@ -183,39 +187,18 @@ bool CreepApp::Initialize()
 	// so we have to query this information.
     mCbvSrvDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
-	LoadTextures();
+	//读取文件夹
+	Gui::GetModel();
+
+	//LoadTexAndGeo(Gui::currentModelIndex);
     BuildRootSignature();
 	BuildDescriptorHeaps();
     BuildShadersAndInputLayout();
-    BuildShapeGeometry();
+    //BuildShapeGeometry();
 	BuildMaterials();
-    BuildRenderItems();
-    BuildFrameResources();
+    //BuildRenderItems();
+    //BuildFrameResources();
     BuildPSOs();
-
-	// Setup Dear ImGui context
-    IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
-    ImGuiIO& io = ImGui::GetIO(); (void)io;
-    //io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
-    //io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
-
-    // Setup Dear ImGui style
-    ImGui::StyleColorsLight();
-    //ImGui::StyleColorsLight();
-
-	CD3DX12_CPU_DESCRIPTOR_HANDLE hCpuDescriptor(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
-	hCpuDescriptor.Offset(1,mCbvSrvDescriptorSize);
-
-	CD3DX12_GPU_DESCRIPTOR_HANDLE hGpuDescriptor(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
-	hGpuDescriptor.Offset(1,mCbvSrvDescriptorSize);
-    // Setup Platform/Renderer backends
-    ImGui_ImplWin32_Init(mhMainWnd);
-    ImGui_ImplDX12_Init(md3dDevice.Get(), SwapChainBufferCount,
-        DXGI_FORMAT_R8G8B8A8_UNORM, mSrvDescriptorHeap.Get(),
-        hCpuDescriptor,
-        hGpuDescriptor);
-
 
     // Execute the initialization commands.
     ThrowIfFailed(mCommandList->Close());
@@ -239,6 +222,7 @@ void CreepApp::OnResize()
 
 void CreepApp::Update(const GameTimer& gt)
 {
+	LoadTexAndGeo(Gui::currentModelIndex);
     OnKeyboardInput(gt);
 	UpdateCamera(gt);
 
@@ -255,11 +239,12 @@ void CreepApp::Update(const GameTimer& gt)
         WaitForSingleObject(eventHandle, INFINITE);
         CloseHandle(eventHandle);
     }
-
+	
 	AnimateMaterials(gt);
 	UpdateObjectCBs(gt);
 	UpdateMaterialCBs(gt);
 	UpdateMainPassCB(gt);
+
 }
 
 void CreepApp::Draw(const GameTimer& gt)
@@ -334,6 +319,7 @@ void CreepApp::Draw(const GameTimer& gt)
 
 void CreepApp::OnMouseDown(WPARAM btnState, int x, int y)
 {
+       
     mLastMousePos.x = x;
     mLastMousePos.y = y;
 
@@ -347,34 +333,37 @@ void CreepApp::OnMouseUp(WPARAM btnState, int x, int y)
 
 void CreepApp::OnMouseMove(WPARAM btnState, int x, int y)
 {
-    if((btnState & MK_LBUTTON) != 0)
-    {
-        // Make each pixel correspond to a quarter of a degree.
-        float dx = XMConvertToRadians(0.25f*static_cast<float>(x - mLastMousePos.x));
-        float dy = XMConvertToRadians(0.25f*static_cast<float>(y - mLastMousePos.y));
+	ImGuiIO& io = ImGui::GetIO();
+	if(!io.WantCaptureMouse)
+	{
+		if((btnState & MK_LBUTTON) != 0)
+		{
+			// Make each pixel correspond to a quarter of a degree.
+			float dx = XMConvertToRadians(0.25f*static_cast<float>(x - mLastMousePos.x));
+			float dy = XMConvertToRadians(0.25f*static_cast<float>(y - mLastMousePos.y));
 
-        // Update angles based on input to orbit camera around box.
-        mTheta += dx;
-        mPhi += dy;
+			// Update angles based on input to orbit camera around box.
+			mTheta += dx;
+			mPhi += dy;
 
-        // Restrict the angle mPhi.
-        mPhi = MathHelper::Clamp(mPhi, 0.1f, MathHelper::Pi - 0.1f);
-    }
-    else if((btnState & MK_RBUTTON) != 0)
-    {
-        // Make each pixel correspond to 0.2 unit in the scene.
-        float dx = 0.05f*static_cast<float>(x - mLastMousePos.x);
-        float dy = 0.05f*static_cast<float>(y - mLastMousePos.y);
+			// Restrict the angle mPhi.
+			mPhi = MathHelper::Clamp(mPhi, 0.1f, MathHelper::Pi - 0.1f);
+		}
+		else if((btnState & MK_RBUTTON) != 0)
+		{
+			// Make each pixel correspond to 0.2 unit in the scene.
+			float dx = 0.05f*static_cast<float>(x - mLastMousePos.x);
+			float dy = 0.05f*static_cast<float>(y - mLastMousePos.y);
 
-        // Update the camera radius based on input.
-        mRadius += dx - dy;
+			// Update the camera radius based on input.
+			mRadius += dx - dy;
 
-        // Restrict the radius.
-        mRadius = MathHelper::Clamp(mRadius, 0.1f, 150.0f);
-    }
-
-    mLastMousePos.x = x;
-    mLastMousePos.y = y;
+			// Restrict the radius.
+			mRadius = MathHelper::Clamp(mRadius, 0.1f, 150.0f);
+		}
+		mLastMousePos.x = x;
+		mLastMousePos.y = y;
+	}
 }
  
 void CreepApp::OnKeyboardInput(const GameTimer& gt)
@@ -487,18 +476,115 @@ void CreepApp::UpdateMainPassCB(const GameTimer& gt)
 	currPassCB->CopyData(0, mMainPassCB);
 }
 
-void CreepApp::LoadTextures()
+void CreepApp::LoadTexAndGeo(int modelIndex)
 {
-	auto breadTex = std::make_unique<Texture>();
-	breadTex->Name = "breadTex";
-	breadTex->Filename = L"./model/megaphone/textures/Megaphone_01_diff_1k.dds";
-	
-	//load texture
-	breadTex->createTexture(md3dDevice.Get());
-	mTextures[breadTex->Name] = std::move(breadTex);
+	if(modelIndex != lastModelIndex)
+	{
+		// Flush before changing any resources.
+		FlushCommandQueue();
 
-	//uploadtex
-	mTextures["breadTex"]->uploadTex(md3dDevice.Get(), mCommandList.Get());
+    	ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
+
+		
+		auto modelTex = std::make_unique<Texture>();
+		modelTex->Name = "modelTex";
+		wstring modelName = Gui::modelFilePath[modelIndex].substr(8);
+		wstring texPath = Gui::modelFilePath[modelIndex]+L"/textures/"+modelName+L".dds";
+		wstring wmodelPath = Gui::modelFilePath[modelIndex]+L"/"+modelName+L".fbx";
+		modelTex->Filename = texPath;
+		
+	    vector<char>buf(wmodelPath.size());
+	    use_facet<ctype<wchar_t>>(locale()).narrow(wmodelPath.data(), wmodelPath.data() + wmodelPath.size(), '*', buf.data());
+        string modelPath(buf.data(), buf.size());
+		//load texture
+		modelTex->createTexture(md3dDevice.Get());
+		
+
+		
+		
+		m_Mesh mesh;
+		loadModel(modelPath, mesh);
+		if(mesh.vertices.size() != 0)
+		{
+			//模型也加载成功了再上传
+			mTextures[modelTex->Name] = std::move(modelTex);
+			//uploadtex
+			mTextures["modelTex"]->uploadTex(md3dDevice.Get(), mCommandList.Get());
+			SubmeshGeometry modelSubmesh;
+			modelSubmesh.IndexCount = mesh.indices.size();
+			modelSubmesh.StartIndexLocation = 0;
+			modelSubmesh.BaseVertexLocation = 0;
+			std::vector<Vertex> vertices(mesh.vertices.size());
+			for(size_t i = 0; i < mesh.vertices.size(); ++i)
+			{
+				vertices[i].Pos = mesh.vertices[i].position;
+				vertices[i].Normal = mesh.vertices[i].normal;
+				vertices[i].TexC = mesh.vertices[i].uv;
+			}
+			std::vector<std::uint16_t> indices;
+			indices.assign(mesh.indices.begin(),mesh.indices.end());
+			
+			const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);
+			const UINT ibByteSize = (UINT)indices.size()  * sizeof(std::uint16_t);
+
+			auto geo = std::make_unique<MeshGeometry>();
+			geo->Name = "modelGeo";
+
+			ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
+			CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
+
+			ThrowIfFailed(D3DCreateBlob(ibByteSize, &geo->IndexBufferCPU));
+			CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
+
+			geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
+				mCommandList.Get(), vertices.data(), vbByteSize, geo->VertexBufferUploader);
+
+			geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
+				mCommandList.Get(), indices.data(), ibByteSize, geo->IndexBufferUploader);
+
+			geo->VertexByteStride = sizeof(Vertex);
+			geo->VertexBufferByteSize = vbByteSize;
+			geo->IndexFormat = DXGI_FORMAT_R16_UINT;
+			geo->IndexBufferByteSize = ibByteSize;
+
+			geo->DrawArgs["model"] = modelSubmesh;
+
+			mGeometries[geo->Name] = std::move(geo);
+
+			//重新创建srv
+			CD3DX12_CPU_DESCRIPTOR_HANDLE hDescriptor(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
+			hDescriptor.Offset(1,mCbvSrvDescriptorSize);
+
+			auto modelTexRes = mTextures["modelTex"]->Resource;
+		
+			D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+			srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+			srvDesc.Format = modelTexRes->GetDesc().Format;
+			srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+			srvDesc.Texture2D.MostDetailedMip = 0;
+			srvDesc.Texture2D.MipLevels = modelTexRes->GetDesc().MipLevels;
+			srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
+
+			md3dDevice->CreateShaderResourceView(modelTexRes.Get(), &srvDesc, hDescriptor);
+			//重新创建renderitem
+			mAllRitems.clear();
+			mOpaqueRitems.clear();
+			BuildRenderItems();
+			//重新创建帧资源
+			BuildFrameResources();
+			//成功了换模型下标
+			lastModelIndex = modelIndex;
+		}else {
+			OutputDebugStringA("Failed to load model!");
+			Gui::currentModelIndex = lastModelIndex;
+		}
+		// Execute the initialization commands.
+		ThrowIfFailed(mCommandList->Close());
+		ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
+		mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
+
+	}
+
 }
 
 void CreepApp::BuildRootSignature()
@@ -552,22 +638,41 @@ void CreepApp::BuildDescriptorHeaps()
 	srvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 	ThrowIfFailed(md3dDevice->CreateDescriptorHeap(&srvHeapDesc, IID_PPV_ARGS(&mSrvDescriptorHeap)));
 
+	// Setup Dear ImGui context
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
+    //io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+    //io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+
+    // Setup Dear ImGui style
+    ImGui::StyleColorsDark();
+    //ImGui::StyleColorsLight();
+
+    // Setup Platform/Renderer backends
+    ImGui_ImplWin32_Init(mhMainWnd);
+    ImGui_ImplDX12_Init(md3dDevice.Get(), SwapChainBufferCount,
+        DXGI_FORMAT_R8G8B8A8_UNORM, mSrvDescriptorHeap.Get(),
+        mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(),
+        mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+	
 	//
 	// Fill out the heap with actual descriptors.
 	//
-	CD3DX12_CPU_DESCRIPTOR_HANDLE hDescriptor(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
+	// CD3DX12_CPU_DESCRIPTOR_HANDLE hDescriptor(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
+	// hDescriptor.Offset(1,mCbvSrvDescriptorSize);
 
-	auto breadTex = mTextures["breadTex"]->Resource;
+	// auto modelTex = mTextures["modelTex"]->Resource;
  
-	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-	srvDesc.Format = breadTex->GetDesc().Format;
-	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-	srvDesc.Texture2D.MostDetailedMip = 0;
-	srvDesc.Texture2D.MipLevels = breadTex->GetDesc().MipLevels;
-	srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
+	// D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+	// srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+	// srvDesc.Format = modelTex->GetDesc().Format;
+	// srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+	// srvDesc.Texture2D.MostDetailedMip = 0;
+	// srvDesc.Texture2D.MipLevels = modelTex->GetDesc().MipLevels;
+	// srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
 
-	md3dDevice->CreateShaderResourceView(breadTex.Get(), &srvDesc, hDescriptor);
+	// md3dDevice->CreateShaderResourceView(modelTex.Get(), &srvDesc, hDescriptor);
 }
 
 void CreepApp::BuildShadersAndInputLayout()
@@ -583,51 +688,6 @@ void CreepApp::BuildShadersAndInputLayout()
     };
 }
 
-void CreepApp::BuildShapeGeometry()
-{
-	m_Mesh mesh;
-	loadModel("./model/megaphone/Megaphone_01_1k.fbx", mesh);
-	SubmeshGeometry breadSubmesh;
-	breadSubmesh.IndexCount = mesh.indices.size();
-	breadSubmesh.StartIndexLocation = 0;
-	breadSubmesh.BaseVertexLocation = 0;
-	std::vector<Vertex> vertices(mesh.vertices.size());
-	for(size_t i = 0; i < mesh.vertices.size(); ++i)
-	{
-		vertices[i].Pos = mesh.vertices[i].position;
-		vertices[i].Normal = mesh.vertices[i].normal;
-		vertices[i].TexC = mesh.vertices[i].uv;
-	}
-	std::vector<std::uint16_t> indices;
-	indices.assign(mesh.indices.begin(),mesh.indices.end());
-    
-    const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);
-    const UINT ibByteSize = (UINT)indices.size()  * sizeof(std::uint16_t);
-
-	auto geo = std::make_unique<MeshGeometry>();
-	geo->Name = "breadGeo";
-
-	ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
-	CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
-
-	ThrowIfFailed(D3DCreateBlob(ibByteSize, &geo->IndexBufferCPU));
-	CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
-
-	geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
-		mCommandList.Get(), vertices.data(), vbByteSize, geo->VertexBufferUploader);
-
-	geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
-		mCommandList.Get(), indices.data(), ibByteSize, geo->IndexBufferUploader);
-
-	geo->VertexByteStride = sizeof(Vertex);
-	geo->VertexBufferByteSize = vbByteSize;
-	geo->IndexFormat = DXGI_FORMAT_R16_UINT;
-	geo->IndexBufferByteSize = ibByteSize;
-
-	geo->DrawArgs["bread"] = breadSubmesh;
-
-	mGeometries[geo->Name] = std::move(geo);
-}
 
 void CreepApp::BuildPSOs()
 {
@@ -686,15 +746,15 @@ void CreepApp::BuildMaterials()
 
 void CreepApp::BuildRenderItems()
 {
-	auto breadRitem = std::make_unique<RenderItem>();
-	breadRitem->ObjCBIndex = 0;
-	breadRitem->Mat = mMaterials["woodCrate"].get();
-	breadRitem->Geo = mGeometries["breadGeo"].get();
-	breadRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-	breadRitem->IndexCount = breadRitem->Geo->DrawArgs["bread"].IndexCount;
-	breadRitem->StartIndexLocation = breadRitem->Geo->DrawArgs["bread"].StartIndexLocation;
-	breadRitem->BaseVertexLocation = breadRitem->Geo->DrawArgs["bread"].BaseVertexLocation;
-	mAllRitems.push_back(std::move(breadRitem));
+	auto modelRitem = std::make_unique<RenderItem>();
+	modelRitem->ObjCBIndex = 0;
+	modelRitem->Mat = mMaterials["woodCrate"].get();
+	modelRitem->Geo = mGeometries["modelGeo"].get();
+	modelRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+	modelRitem->IndexCount = modelRitem->Geo->DrawArgs["model"].IndexCount;
+	modelRitem->StartIndexLocation = modelRitem->Geo->DrawArgs["model"].StartIndexLocation;
+	modelRitem->BaseVertexLocation = modelRitem->Geo->DrawArgs["model"].BaseVertexLocation;
+	mAllRitems.push_back(std::move(modelRitem));
 
 	// All the render items are opaque.
 	for(auto& e : mAllRitems)
@@ -719,7 +779,7 @@ void CreepApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::ve
         cmdList->IASetPrimitiveTopology(ri->PrimitiveType);
 
 		CD3DX12_GPU_DESCRIPTOR_HANDLE tex(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
-		tex.Offset(ri->Mat->DiffuseSrvHeapIndex, mCbvSrvDescriptorSize);
+		tex.Offset(ri->Mat->DiffuseSrvHeapIndex + 1, mCbvSrvDescriptorSize);
 
         D3D12_GPU_VIRTUAL_ADDRESS objCBAddress = objectCB->GetGPUVirtualAddress() + ri->ObjCBIndex*objCBByteSize;
 		D3D12_GPU_VIRTUAL_ADDRESS matCBAddress = matCB->GetGPUVirtualAddress() + ri->Mat->MatCBIndex*matCBByteSize;
