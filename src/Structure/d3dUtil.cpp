@@ -122,4 +122,11 @@ std::wstring DxException::ToString()const
     return FunctionName + L" failed in " + Filename + L"; line " + std::to_wstring(LineNumber) + L"; error: " + msg;
 }
 
-
+using namespace std;
+string d3dUtil::wstringTostring(wstring& str)
+{
+        vector<char>buf(str.size());
+	    use_facet<ctype<wchar_t>>(locale()).narrow(str.data(), str.data() + str.size(), '*', buf.data());
+        string res(buf.data(), buf.size());
+        return res;
+}

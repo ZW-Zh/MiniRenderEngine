@@ -7,6 +7,7 @@
 #include "Structure/UploadBuffer.h"
 #include "FrameResource.h"
 #include "Utility/MeshHelper.h"
+#include <d3d12.h>
 #include <debugapi.h>
 #include <string>
 #include <winuser.h>
@@ -109,8 +110,8 @@ private:
 
     std::vector<D3D12_INPUT_ELEMENT_DESC> mInputLayout;
 
-    ComPtr<ID3D12PipelineState> mOpaquePSO = nullptr;
- 
+    //ComPtr<ID3D12PipelineState> mOpaquePSO = nullptr;
+ 	std::unordered_map<std::string, ComPtr<ID3D12PipelineState>> mPSOs;
 	// List of all the render items.
 	std::vector<std::unique_ptr<RenderItem>> mAllRitems;
 
@@ -135,7 +136,15 @@ private:
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
     PSTR cmdLine, int showCmd)
 {
-    // Enable run-time memory check for debug builds.
+#define _CRTDBG_MAP_ALLOC   // Enable run-time memory check for debug builds.
+#ifdef _DEBUG
+    #define DBG_NEW new ( _NORMAL_BLOCK , __FILE__ , __LINE__ )
+    // Replace _NORMAL_BLOCK with _CLIENT_BLOCK if you want the
+    // allocations to be of _CLIENT_BLOCK type
+#else
+    #define DBG_NEW new
+#endif
+
 #if defined(DEBUG) | defined(_DEBUG)
     _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 #endif
@@ -172,7 +181,15 @@ CreepApp::~CreepApp()
 	
 	if(mRootSignature){mRootSignature->Release();mRootSignature.Detach();}
 	if(mSrvDescriptorHeap){mSrvDescriptorHeap->Release();mSrvDescriptorHeap.Detach();}
-	if(mOpaquePSO){mOpaquePSO->Release();mOpaquePSO.Detach();}
+	for(auto& i : mPSOs)
+	{
+		if(i.second){i.second->Release();i.second.Detach();}
+	}
+	
+	for(auto& i:mTextures)
+	{
+		if(i.second) i.second=nullptr;
+	}
 }
 
 bool CreepApp::Initialize()
@@ -250,52 +267,85 @@ void CreepApp::Update(const GameTimer& gt)
 void CreepApp::Draw(const GameTimer& gt)
 {
     auto cmdListAlloc = mCurrFrameResource->CmdListAlloc;
-
+	
     // Reuse the memory associated with command recording.
     // We can only reset when the associated command lists have finished execution on the GPU.
     ThrowIfFailed(cmdListAlloc->Reset());
 
-    // A command list can be reset after it has been added to the command queue via ExecuteCommandList.
-    // Reusing the command list reuses memory.
-    ThrowIfFailed(mCommandList->Reset(cmdListAlloc.Get(), mOpaquePSO.Get()));
+	// A command list can be reset after it has been added to the command queue via ExecuteCommandList.
+	// Reusing the command list reuses memory.
+	ThrowIfFailed(mCommandList->Reset(cmdListAlloc.Get(), mPSOs["opaque"].Get()));
 
-    mCommandList->RSSetViewports(1, &mScreenViewport);
-    mCommandList->RSSetScissorRects(1, &mScissorRect);
+	mCommandList->RSSetViewports(1, &mScreenViewport);
+	mCommandList->RSSetScissorRects(1, &mScissorRect);
+	if(m4xMsaaState)
+	{
+		ImGui_ImplDX12_SetPipelineSamplesCount(4);
+		m_msaaHelper->Prepare(mCommandList.Get());
+		auto rtvDescriptor = m_msaaHelper->GetMSAARenderTargetView();
+		auto dsvDescriptor = m_msaaHelper->GetMSAADepthStencilView();
+		mCommandList->OMSetRenderTargets(1, &rtvDescriptor, FALSE, &dsvDescriptor);
+		mCommandList->ClearRenderTargetView(rtvDescriptor, Colors::LightSteelBlue, 0, nullptr);
+		mCommandList->ClearDepthStencilView(dsvDescriptor, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
 
-    // Indicate a state transition on the resource usage.
-	mCommandList->ResourceBarrier(1, get_rvalue_ptr(CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
-		D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET)));
+		//设置根签名和常量缓冲区
+		ID3D12DescriptorHeap* descriptorHeaps[] = { mSrvDescriptorHeap.Get() };
+		mCommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
+		mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
+		auto passCB = mCurrFrameResource->PassCB->Resource();
+		mCommandList->SetGraphicsRootConstantBufferView(2, passCB->GetGPUVirtualAddress());
+		mCommandList->SetPipelineState(mPSOs["msaa4x"].Get());
+		DrawRenderItems(mCommandList.Get(), mOpaqueRitems);
+		// Start the Dear ImGui frame
+		ImGui_ImplDX12_NewFrame();
+		ImGui_ImplWin32_NewFrame();
+		ImGui::NewFrame();
 
-    // Clear the back buffer and depth buffer.
-    mCommandList->ClearRenderTargetView(CurrentBackBufferView(), Colors::LightSteelBlue, 0, nullptr);
-    mCommandList->ClearDepthStencilView(DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
+		Gui::setGUI();
 
-    // Specify the buffers we are going to render to.
-    mCommandList->OMSetRenderTargets(1, get_rvalue_ptr(CurrentBackBufferView()), true, get_rvalue_ptr(DepthStencilView()));
+		ImGui::Render();
+		ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), mCommandList.Get());
+		 m_msaaHelper->Resolve(mCommandList.Get(), CurrentBackBuffer(),D3D12_RESOURCE_STATE_PRESENT);
 
-	ID3D12DescriptorHeap* descriptorHeaps[] = { mSrvDescriptorHeap.Get() };
-	mCommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
+	}else {
+		ImGui_ImplDX12_SetPipelineSamplesCount(1);
 
-	mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
+		// Indicate a state transition on the resource usage.
+		mCommandList->ResourceBarrier(1, get_rvalue_ptr(CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
+			D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET)));
 
-	auto passCB = mCurrFrameResource->PassCB->Resource();
-	mCommandList->SetGraphicsRootConstantBufferView(2, passCB->GetGPUVirtualAddress());
+		// Clear the back buffer and depth buffer.
+		mCommandList->ClearRenderTargetView(CurrentBackBufferView(), Colors::LightSteelBlue, 0, nullptr);
+		mCommandList->ClearDepthStencilView(DepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
 
-    DrawRenderItems(mCommandList.Get(), mOpaqueRitems);
-	// Start the Dear ImGui frame
-    ImGui_ImplDX12_NewFrame();
-    ImGui_ImplWin32_NewFrame();
-    ImGui::NewFrame();
+		// Specify the buffers we are going to render to.
+		mCommandList->OMSetRenderTargets(1, get_rvalue_ptr(CurrentBackBufferView()), true, get_rvalue_ptr(DepthStencilView()));
 
-	Gui::setGUI();
-  
-  	ImGui::Render();
-  	ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), mCommandList.Get());
+		ID3D12DescriptorHeap* descriptorHeaps[] = { mSrvDescriptorHeap.Get() };
+		mCommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
 
-    // Indicate a state transition on the resource usage.
-	mCommandList->ResourceBarrier(1, get_rvalue_ptr(CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
-		D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT)));
+		mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
 
+		auto passCB = mCurrFrameResource->PassCB->Resource();
+		mCommandList->SetGraphicsRootConstantBufferView(2, passCB->GetGPUVirtualAddress());
+
+		
+		DrawRenderItems(mCommandList.Get(), mOpaqueRitems);
+		// Start the Dear ImGui frame
+		ImGui_ImplDX12_NewFrame();
+		ImGui_ImplWin32_NewFrame();
+		ImGui::NewFrame();
+
+		Gui::setGUI();
+
+		ImGui::Render();
+		ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), mCommandList.Get());
+
+		// Indicate a state transition on the resource usage.
+		mCommandList->ResourceBarrier(1, get_rvalue_ptr(CD3DX12_RESOURCE_BARRIER::Transition(CurrentBackBuffer(),
+			D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT)));
+	}
+	
 	
     // Done recording commands.
     ThrowIfFailed(mCommandList->Close());
@@ -487,19 +537,16 @@ void CreepApp::LoadTexAndGeo(int modelIndex)
 
 		
 		auto modelTex = std::make_unique<Texture>();
-		modelTex->Name = "modelTex";
+		
 		wstring modelName = Gui::modelFilePath[modelIndex].substr(8);
 		wstring texPath = Gui::modelFilePath[modelIndex]+L"/textures/"+modelName+L".dds";
 		wstring wmodelPath = Gui::modelFilePath[modelIndex]+L"/"+modelName+L".fbx";
 		modelTex->Filename = texPath;
-		
-	    vector<char>buf(wmodelPath.size());
-	    use_facet<ctype<wchar_t>>(locale()).narrow(wmodelPath.data(), wmodelPath.data() + wmodelPath.size(), '*', buf.data());
-        string modelPath(buf.data(), buf.size());
+		modelTex->Name = "modelTex";
+	    
+        string modelPath = d3dUtil::wstringTostring(wmodelPath);
 		//load texture
 		modelTex->createTexture(md3dDevice.Get());
-		
-
 		
 		
 		m_Mesh mesh;
@@ -652,27 +699,10 @@ void CreepApp::BuildDescriptorHeaps()
     // Setup Platform/Renderer backends
     ImGui_ImplWin32_Init(mhMainWnd);
     ImGui_ImplDX12_Init(md3dDevice.Get(), SwapChainBufferCount,
-        DXGI_FORMAT_R8G8B8A8_UNORM, mSrvDescriptorHeap.Get(),
+        mBackBufferFormat, mSrvDescriptorHeap.Get(),
         mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(),
         mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
 	
-	//
-	// Fill out the heap with actual descriptors.
-	//
-	// CD3DX12_CPU_DESCRIPTOR_HANDLE hDescriptor(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
-	// hDescriptor.Offset(1,mCbvSrvDescriptorSize);
-
-	// auto modelTex = mTextures["modelTex"]->Resource;
- 
-	// D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-	// srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-	// srvDesc.Format = modelTex->GetDesc().Format;
-	// srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-	// srvDesc.Texture2D.MostDetailedMip = 0;
-	// srvDesc.Texture2D.MipLevels = modelTex->GetDesc().MipLevels;
-	// srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
-
-	// md3dDevice->CreateShaderResourceView(modelTex.Get(), &srvDesc, hDescriptor);
 }
 
 void CreepApp::BuildShadersAndInputLayout()
@@ -716,10 +746,16 @@ void CreepApp::BuildPSOs()
 	opaquePsoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
 	opaquePsoDesc.NumRenderTargets = 1;
 	opaquePsoDesc.RTVFormats[0] = mBackBufferFormat;
-	opaquePsoDesc.SampleDesc.Count = m4xMsaaState ? 4 : 1;
-	opaquePsoDesc.SampleDesc.Quality = m4xMsaaState ? (m4xMsaaQuality - 1) : 0;
+	opaquePsoDesc.SampleDesc.Count = 1;
+	opaquePsoDesc.SampleDesc.Quality = 0;
 	opaquePsoDesc.DSVFormat = mDepthStencilFormat;
-    ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&opaquePsoDesc, IID_PPV_ARGS(&mOpaquePSO)));
+
+    ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&opaquePsoDesc, IID_PPV_ARGS(&mPSOs["opaque"])));
+
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC msaaPsoDesc = opaquePsoDesc;
+	msaaPsoDesc.SampleDesc.Count = 4;
+	
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&msaaPsoDesc, IID_PPV_ARGS(&mPSOs["msaa4x"])));
 }
 
 void CreepApp::BuildFrameResources()

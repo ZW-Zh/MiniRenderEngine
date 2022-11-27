@@ -8,6 +8,7 @@
 #include <filesystem>
 #include <iostream>
 #include <unordered_map>
+#include "Structure/d3dUtil.h"
 using namespace std;
 
 class Gui
@@ -46,19 +47,37 @@ class Gui
         
         ImGui::Begin("choose Model");
         
-        vector<const char *> modelNames;
-        for(auto i : Gui::modelFilePath)
+        vector<string> modelNames;
+        for(auto& i : Gui::modelFilePath)
         {   
             wstring str = i.second.substr(8);
-	        vector<char>buf(str.size());
-	        use_facet<ctype<wchar_t>>(locale()).narrow(str.data(), str.data() + str.size(), '*', buf.data());
-            string* cstr =new string(buf.data(), buf.size());
-            modelNames.push_back(cstr->c_str());
+            string res = d3dUtil::wstringTostring(str);
+            
+            modelNames.push_back(res);
         }
-        ImGui::Combo("model", &currentModelIndex, modelNames.data(), modelNames.size());
-        ImGui::SameLine();
+
+        //static int item_current_idx = 0; // Here we store our selection data as an index.
+        string combo_preview_value = modelNames[currentModelIndex];  // Pass in the preview value visible before opening the combo (it could be anything)
+        if (ImGui::BeginCombo("combo 1", combo_preview_value.c_str(), ImGuiComboFlags_None))
+        {
+            for (int n = 0; n < modelNames.size(); n++)
+            {
+                const bool is_selected = (currentModelIndex == n);
+                if (ImGui::Selectable(modelNames[n].c_str(), is_selected))
+                    currentModelIndex = n;
+
+                // Set the initial focus when opening the combo (scrolling + keyboard navigation focus)
+                if (is_selected)
+                    ImGui::SetItemDefaultFocus();
+            }
+            ImGui::EndCombo();
+        }
+
         ImGui::End();
     }
-
+    ~Gui()
+    {
+        
+    }
 
 };

@@ -45,6 +45,8 @@
 #include <d3d12.h>
 #include <dxgi1_4.h>
 #include <d3dcompiler.h>
+#include <intsafe.h>
+#include <minwindef.h>
 #ifdef _MSC_VER
 #pragma comment(lib, "d3dcompiler") // Automatically link with d3dcompiler.lib as we are using D3DCompile() below.
 #endif
@@ -67,11 +69,11 @@ struct ImGui_ImplDX12_Data
     ID3D12Resource*                 pFontTextureResource;
     D3D12_CPU_DESCRIPTOR_HANDLE     hFontSrvCpuDescHandle;
     D3D12_GPU_DESCRIPTOR_HANDLE     hFontSrvGpuDescHandle;
-
+    ID3D12PipelineState*            msaaPipelineState;
     ImGui_ImplDX12_RenderBuffers*   pFrameResources;
     UINT                            numFramesInFlight;
     UINT                            frameIndex;
-
+    UINT                            samplesCount;
     ImGui_ImplDX12_Data()           { memset((void*)this, 0, sizeof(*this)); frameIndex = UINT_MAX; }
 };
 
@@ -136,7 +138,13 @@ static void ImGui_ImplDX12_SetupRenderState(ImDrawData* draw_data, ID3D12Graphic
     ibv.Format = sizeof(ImDrawIdx) == 2 ? DXGI_FORMAT_R16_UINT : DXGI_FORMAT_R32_UINT;
     ctx->IASetIndexBuffer(&ibv);
     ctx->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-    ctx->SetPipelineState(bd->pPipelineState);
+    if(bd->samplesCount == 4)
+    {
+        ctx->SetPipelineState(bd->msaaPipelineState);
+    }else 
+    {
+        ctx->SetPipelineState(bd->pPipelineState);
+    }
     ctx->SetGraphicsRootSignature(bd->pRootSignature);
     ctx->SetGraphicsRoot32BitConstants(0, 16, &vertex_constant_buffer, 0);
 
@@ -542,6 +550,7 @@ bool    ImGui_ImplDX12_CreateDeviceObjects()
     psoDesc.SampleMask = UINT_MAX;
     psoDesc.NumRenderTargets = 1;
     psoDesc.RTVFormats[0] = bd->RTVFormat;
+    //add samples count by zzw
     psoDesc.SampleDesc.Count = 1;
     psoDesc.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
 
@@ -661,9 +670,13 @@ bool    ImGui_ImplDX12_CreateDeviceObjects()
     }
 
     HRESULT result_pipeline_state = bd->pd3dDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&bd->pPipelineState));
+    D3D12_GRAPHICS_PIPELINE_STATE_DESC msaaDesc = psoDesc;
+    msaaDesc.SampleDesc.Count = 4;
+    HRESULT result_msaa_pipeline_state = bd->pd3dDevice->CreateGraphicsPipelineState(&msaaDesc, IID_PPV_ARGS(&bd->msaaPipelineState));
+    
     vertexShaderBlob->Release();
     pixelShaderBlob->Release();
-    if (result_pipeline_state != S_OK)
+    if (result_pipeline_state != S_OK || result_msaa_pipeline_state != S_OK)
         return false;
 
     ImGui_ImplDX12_CreateFontsTexture();
@@ -681,6 +694,8 @@ void    ImGui_ImplDX12_InvalidateDeviceObjects()
     SafeRelease(bd->pRootSignature);
     SafeRelease(bd->pPipelineState);
     SafeRelease(bd->pFontTextureResource);
+    SafeRelease(bd->msaaPipelineState);
+
     io.Fonts->SetTexID(0); // We copied bd->pFontTextureView to io.Fonts->TexID so let's clear that as well.
 
     for (UINT i = 0; i < bd->numFramesInFlight; i++)
@@ -691,6 +706,7 @@ void    ImGui_ImplDX12_InvalidateDeviceObjects()
     }
 }
 
+//add samples count by zzw
 bool ImGui_ImplDX12_Init(ID3D12Device* device, int num_frames_in_flight, DXGI_FORMAT rtv_format, ID3D12DescriptorHeap* cbv_srv_heap,
                          D3D12_CPU_DESCRIPTOR_HANDLE font_srv_cpu_desc_handle, D3D12_GPU_DESCRIPTOR_HANDLE font_srv_gpu_desc_handle)
 {
@@ -702,7 +718,6 @@ bool ImGui_ImplDX12_Init(ID3D12Device* device, int num_frames_in_flight, DXGI_FO
     io.BackendRendererUserData = (void*)bd;
     io.BackendRendererName = "imgui_impl_dx12";
     io.BackendFlags |= ImGuiBackendFlags_RendererHasVtxOffset;  // We can honor the ImDrawCmd::VtxOffset field, allowing for large meshes.
-
     bd->pd3dDevice = device;
     bd->RTVFormat = rtv_format;
     bd->hFontSrvCpuDescHandle = font_srv_cpu_desc_handle;
@@ -745,4 +760,10 @@ void ImGui_ImplDX12_NewFrame()
 
     if (!bd->pPipelineState)
         ImGui_ImplDX12_CreateDeviceObjects();
+}
+
+void ImGui_ImplDX12_SetPipelineSamplesCount(int msaaSamplesCount)
+{
+    ImGui_ImplDX12_Data* bd = ImGui_ImplDX12_GetBackendData();
+    bd->samplesCount = msaaSamplesCount;
 }

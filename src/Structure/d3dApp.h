@@ -7,7 +7,7 @@
 #include "d3dUtil.h"
 #include "Utility/GameTimer.h"
 #include "Component/Gui.h"
-
+#include "MSAAHelper.h"
 class D3DApp
 {
 protected:
@@ -75,6 +75,7 @@ protected:
 	bool      mResizing = false;   // are the resize bars being dragged?
     bool      mFullscreenState = false;// fullscreen enabled
 
+    std::unique_ptr<MSAAHelper> m_msaaHelper;
 	// Set true to use 4X MSAA (?.1.8).  The default is false.
     bool      m4xMsaaState = false;    // 4X MSAA enabled
     UINT      m4xMsaaQuality = 0;      // quality level of 4X MSAA

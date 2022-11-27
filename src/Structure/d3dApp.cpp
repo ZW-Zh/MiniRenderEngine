@@ -52,6 +52,7 @@ D3DApp::~D3DApp()
     if (mFence) { mFence->Release(); mFence.Detach(); }
 	 //if (md3dDevice) { md3dDevice->Release(); md3dDevice->Release(); }
 
+	m_msaaHelper->ReleaseDevice();
 	DestroyWindow(mhMainWnd);
     UnregisterClassW(L"MainWnd", mhAppInst);
 }
@@ -83,8 +84,8 @@ void D3DApp::Set4xMsaaState(bool value)
         m4xMsaaState = value;
 
         // Recreate the swapchain and buffers with new multisample settings.
-        CreateSwapChain();
-        OnResize();
+        //CreateSwapChain();
+        //OnResize();
     }
 }
 
@@ -137,27 +138,7 @@ bool D3DApp::Initialize()
 	return true;
 }
  
-void D3DApp::CreateRtvAndDsvDescriptorHeaps()
-{
-    D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc;
-    rtvHeapDesc.NumDescriptors = SwapChainBufferCount;
-    rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
-    rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-	rtvHeapDesc.NodeMask = 0;
-    ThrowIfFailed(md3dDevice->CreateDescriptorHeap(
-        &rtvHeapDesc, IID_PPV_ARGS(mRtvHeap.GetAddressOf())));
 
-
-    D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc;
-    dsvHeapDesc.NumDescriptors = 1;
-    dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
-    dsvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-	dsvHeapDesc.NodeMask = 0;
-    ThrowIfFailed(md3dDevice->CreateDescriptorHeap(
-        &dsvHeapDesc, IID_PPV_ARGS(mDsvHeap.GetAddressOf())));
-
-    
-}
 
 void D3DApp::OnResize()
 {
@@ -165,11 +146,14 @@ void D3DApp::OnResize()
 	assert(mSwapChain);
     assert(mDirectCmdListAlloc);
 
+	//msaa交换链更改大小
+	m_msaaHelper->SizeResources(mClientWidth, mClientHeight);
 	// Flush before changing any resources.
 	FlushCommandQueue();
 
     ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
 
+	
 	// Release the previous resources we will be recreating.
 	for (int i = 0; i < SwapChainBufferCount; ++i)
 		mSwapChainBuffer[i].Reset();
@@ -201,8 +185,8 @@ void D3DApp::OnResize()
     depthStencilDesc.DepthOrArraySize = 1;
     depthStencilDesc.MipLevels = 1;
     depthStencilDesc.Format = mDepthStencilFormat;
-    depthStencilDesc.SampleDesc.Count = m4xMsaaState ? 4 : 1;
-    depthStencilDesc.SampleDesc.Quality = m4xMsaaState ? (m4xMsaaQuality - 1) : 0;
+    depthStencilDesc.SampleDesc.Count = 1;
+    depthStencilDesc.SampleDesc.Quality = 0;
     depthStencilDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
     depthStencilDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
 
@@ -242,6 +226,8 @@ void D3DApp::OnResize()
 	mScreenViewport.MaxDepth = 1.0f;
 
     mScissorRect = { 0, 0, mClientWidth, mClientHeight };
+
+	
 }
  
 LRESULT D3DApp::MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
@@ -463,23 +449,6 @@ bool D3DApp::InitDirect3D()
 	mDsvDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
 	mCbvSrvUavDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
-    // Check 4X MSAA quality support for our back buffer format.
-    // All Direct3D 11 capable devices support 4X MSAA for all render 
-    // target formats, so we only need to check quality support.
-
-	D3D12_FEATURE_DATA_MULTISAMPLE_QUALITY_LEVELS msQualityLevels;
-	msQualityLevels.Format = mBackBufferFormat;
-	msQualityLevels.SampleCount = 4;
-	msQualityLevels.Flags = D3D12_MULTISAMPLE_QUALITY_LEVELS_FLAG_NONE;
-	msQualityLevels.NumQualityLevels = 0;
-	ThrowIfFailed(md3dDevice->CheckFeatureSupport(
-		D3D12_FEATURE_MULTISAMPLE_QUALITY_LEVELS,
-		&msQualityLevels,
-		sizeof(msQualityLevels)));
-
-    m4xMsaaQuality = msQualityLevels.NumQualityLevels;
-	assert(m4xMsaaQuality > 0 && "Unexpected MSAA quality level.");
-	
 #ifdef _DEBUG
     LogAdapters();
 #endif
@@ -488,6 +457,16 @@ bool D3DApp::InitDirect3D()
     CreateSwapChain();
     CreateRtvAndDsvDescriptorHeaps();
 
+	//创建MSAA
+	m_msaaHelper = std::make_unique<MSAAHelper>(
+    mBackBufferFormat,
+    mDepthStencilFormat,
+    4);
+
+	m_msaaHelper->SetClearColor(Colors::LightSteelBlue);
+	m_msaaHelper->SetDevice(md3dDevice.Get());
+	//设置rtv，dsv
+	m_msaaHelper->SizeResources(mClientWidth,mClientHeight);
 	return true;
 }
 
@@ -528,8 +507,8 @@ void D3DApp::CreateSwapChain()
     sd.BufferDesc.Format = mBackBufferFormat;
     sd.BufferDesc.ScanlineOrdering = DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED;
     sd.BufferDesc.Scaling = DXGI_MODE_SCALING_UNSPECIFIED;
-    sd.SampleDesc.Count = m4xMsaaState ? 4 : 1;
-    sd.SampleDesc.Quality = m4xMsaaState ? (m4xMsaaQuality - 1) : 0;
+    sd.SampleDesc.Count = 1;
+    sd.SampleDesc.Quality = 0;
     sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
     sd.BufferCount = SwapChainBufferCount;
     sd.OutputWindow = mhMainWnd;
@@ -542,8 +521,27 @@ void D3DApp::CreateSwapChain()
 		mCommandQueue.Get(),
 		&sd, 
 		mSwapChain.GetAddressOf()));
+	
 }
+void D3DApp::CreateRtvAndDsvDescriptorHeaps()
+{
+    D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc;
+    rtvHeapDesc.NumDescriptors = SwapChainBufferCount;
+    rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
+    rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+	rtvHeapDesc.NodeMask = 0;
+    ThrowIfFailed(md3dDevice->CreateDescriptorHeap(
+        &rtvHeapDesc, IID_PPV_ARGS(mRtvHeap.GetAddressOf())));
 
+
+    D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc;
+    dsvHeapDesc.NumDescriptors = 1;
+    dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
+    dsvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+	dsvHeapDesc.NodeMask = 0;
+    ThrowIfFailed(md3dDevice->CreateDescriptorHeap(
+        &dsvHeapDesc, IID_PPV_ARGS(mDsvHeap.GetAddressOf())));
+}
 void D3DApp::FlushCommandQueue()
 {
 	// Advance the fence value to mark commands up to this fence point.

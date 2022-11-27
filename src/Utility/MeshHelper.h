@@ -1,9 +1,9 @@
 #include <DirectXMath.h>
 #include <vector>
 #include <iostream>
-#include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
+#include <assimp/cimport.h>
 
 using namespace DirectX;
 
@@ -55,7 +55,7 @@ static void processNode(aiNode *node, const aiScene *scene,m_Mesh& m_mesh)
             for(unsigned int j = 0; j < face.mNumIndices; j++)
                 m_mesh.indices.push_back(face.mIndices[j]);
         }
-        //texture,能找到贴图名字
+        mesh = nullptr;
     }
     // 接下来对它的子节点重复这一过程
     for(unsigned int i = 0; i < node->mNumChildren; i++)
@@ -65,14 +65,13 @@ static void processNode(aiNode *node, const aiScene *scene,m_Mesh& m_mesh)
 }
 static void loadModel(std::string fileName, m_Mesh& mesh)
 {
-    Assimp::Importer importer;
-    const aiScene *scene = importer.ReadFile(fileName, aiProcess_Triangulate | aiProcess_FlipUVs);//处理为全三角形和翻转y轴坐标
+    const struct aiScene* scene = aiImportFile(fileName.c_str(), aiProcess_Triangulate | aiProcess_FlipUVs);//处理为全三角形和翻转y轴坐标
     if(!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode) 
     {
-        std::cout<< "ERROR::ASSIMP::%s"<< importer.GetErrorString()<< std::endl;
+        std::cout<< "ERROR::ASSIMP::%s"<< aiGetErrorString()<< std::endl;
         return;
     }
     processNode(scene->mRootNode, scene, mesh);
-    
-
+    // We're done. Release all resources associated with this import
+    aiReleaseImport(scene);
 }

@@ -29,8 +29,12 @@
 #include "Utility/MathHelper.h"
 #include "Metalib.h"
 #include "Utility/DDSTextureLoader12.h"
-
+#include <iostream>
 extern const int gNumFrameResources;
+
+#ifndef ReleaseCom
+#define ReleaseCom(x) { if(x){ x->Release(); x = 0; } }
+#endif
 
 inline void d3dSetDebugName(IDXGIObject* obj, const char* name)
 {
@@ -96,6 +100,7 @@ public:
     static bool IsKeyDown(int vkeyCode);
 
     static std::string ToString(HRESULT hr);
+    static std::string wstringTostring(std::wstring& str);
 
     static UINT CalcConstantBufferByteSize(UINT byteSize)
     {
@@ -319,10 +324,17 @@ public:
             D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
         cmdList->ResourceBarrier(1, &barrier);
     }
+    ~Texture()
+    {
+        // Resource->Release();Resource.Detach();
+        // UploadHeap->Release();UploadHeap.Detach();
+        // ddsData.release();
+        // for(auto& i : subresources)
+        // {
+        //     i.pData = nullptr;
+        // }
+    }
 };
 
 
 
-#ifndef ReleaseCom
-#define ReleaseCom(x) { if(x){ x->Release(); x = 0; } }
-#endif
