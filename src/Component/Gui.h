@@ -17,7 +17,7 @@ class Gui
     public:
     static unordered_map<int,wstring> modelFilePath;
     static int currentModelIndex;
-    
+    static int currentCameraIndex;
     static void GetModel()
     {
         int index = 0;
@@ -72,6 +72,9 @@ class Gui
             }
             ImGui::EndCombo();
         }
+        
+        const char* cameraItems[] = {"Common Camera","FPS Camera"};
+        ImGui::Combo("Camera Type", &currentCameraIndex, cameraItems, IM_ARRAYSIZE(cameraItems));
 
         ImGui::End();
     }

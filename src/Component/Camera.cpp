@@ -3,12 +3,13 @@
 //***************************************************************************************
 
 #include "Camera.h"
+#include <DirectXMath.h>
 
 using namespace DirectX;
 
 Camera::Camera()
 {
-	SetLens(0.25f*MathHelper::Pi, 1.0f, 1.0f, 1000.0f);
+	SetLens(0.25f*MathHelper::Pi, 1.0f, 0.1f, 1000.0f);
 }
 
 Camera::~Camera()
@@ -272,4 +273,14 @@ void Camera::UpdateViewMatrix()
 	}
 }
 
+void Camera::UpdateCommonViewMatrix()
+{
+	XMVECTOR pos;
+	XMStoreFloat3(&mPosition, pos);
+	XMVECTOR target = XMVectorZero();
+	XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
 
+	XMMATRIX view = XMMatrixLookAtLH(pos, target, up);
+	XMStoreFloat4x4(&mView, view);
+	mViewDirty = false;
+}

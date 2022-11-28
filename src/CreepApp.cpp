@@ -11,6 +11,7 @@
 #include <debugapi.h>
 #include <string>
 #include <winuser.h>
+#include "Component/Camera.h"
 
 using Microsoft::WRL::ComPtr;
 using namespace DirectX;
@@ -120,17 +121,18 @@ private:
 
     PassConstants mMainPassCB;
 
-	XMFLOAT3 mEyePos = { 0.0f, 0.0f, 0.0f };
-	XMFLOAT4X4 mView = MathHelper::Identity4x4();
-	XMFLOAT4X4 mProj = MathHelper::Identity4x4();
+	// XMFLOAT3 mEyePos = { 0.0f, 0.0f, 0.0f };
+	// XMFLOAT4X4 mView = MathHelper::Identity4x4();
+	// XMFLOAT4X4 mProj = MathHelper::Identity4x4();
 
-	float mTheta = 1.3f*XM_PI;
-	float mPhi = 0.4f*XM_PI;
-	float mRadius = 2.5f;
+	Camera mCamera;
+
+	
 
     POINT mLastMousePos;
 
-	int lastModelIndex = -1;
+	int lastModelIndex = -1;//用于模型切换
+	int lastCameraIndex = -1;
 };
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance,
@@ -233,8 +235,9 @@ void CreepApp::OnResize()
     D3DApp::OnResize();
 
     // The window resized, so update the aspect ratio and recompute the projection matrix.
-    XMMATRIX P = XMMatrixPerspectiveFovLH(0.25f*MathHelper::Pi, AspectRatio(), 0.05f, 100.0f);
-    XMStoreFloat4x4(&mProj, P);
+    // XMMATRIX P = XMMatrixPerspectiveFovLH(0.25f*MathHelper::Pi, AspectRatio(), 0.05f, 100.0f);
+    // XMStoreFloat4x4(&mProj, P);
+	mCamera.SetLens(0.25f*MathHelper::Pi, AspectRatio(), 0.1f, 1000.0f);
 }
 
 void CreepApp::Update(const GameTimer& gt)
@@ -384,32 +387,49 @@ void CreepApp::OnMouseUp(WPARAM btnState, int x, int y)
 void CreepApp::OnMouseMove(WPARAM btnState, int x, int y)
 {
 	ImGuiIO& io = ImGui::GetIO();
-	if(!io.WantCaptureMouse)
+	if(!io.WantCaptureMouse)//不是发生在ui上的事件
 	{
-		if((btnState & MK_LBUTTON) != 0)
+		if(Gui::currentCameraIndex == 0)
 		{
-			// Make each pixel correspond to a quarter of a degree.
-			float dx = XMConvertToRadians(0.25f*static_cast<float>(x - mLastMousePos.x));
-			float dy = XMConvertToRadians(0.25f*static_cast<float>(y - mLastMousePos.y));
+			if((btnState & MK_LBUTTON) != 0)
+			{
+				// Make each pixel correspond to a quarter of a degree.
+				float dx = XMConvertToRadians(0.25f*static_cast<float>(x - mLastMousePos.x));
+				float dy = XMConvertToRadians(0.25f*static_cast<float>(y - mLastMousePos.y));
 
-			// Update angles based on input to orbit camera around box.
-			mTheta += dx;
-			mPhi += dy;
+				// Update angles based on input to orbit camera around box.
+				mCamera.mTheta += dx;
+				mCamera.mPhi += dy;
 
-			// Restrict the angle mPhi.
-			mPhi = MathHelper::Clamp(mPhi, 0.1f, MathHelper::Pi - 0.1f);
+				// Restrict the angle mPhi.
+				mCamera.mPhi = MathHelper::Clamp(mCamera.mPhi, 0.1f, MathHelper::Pi - 0.1f);
+			}
+			else if((btnState & MK_RBUTTON) != 0)
+			{
+				// Make each pixel correspond to 0.2 unit in the scene.
+				float dx = 0.05f*static_cast<float>(x - mLastMousePos.x);
+				float dy = 0.05f*static_cast<float>(y - mLastMousePos.y);
+
+				// Update the camera radius based on input.
+				mCamera.mRadius += dx - dy;
+
+				// Restrict the radius.
+				mCamera.mRadius = MathHelper::Clamp(mCamera.mRadius, 0.1f, 150.0f);
+			}
+			
+			
 		}
-		else if((btnState & MK_RBUTTON) != 0)
+		else if(Gui::currentCameraIndex == 1)
 		{
-			// Make each pixel correspond to 0.2 unit in the scene.
-			float dx = 0.05f*static_cast<float>(x - mLastMousePos.x);
-			float dy = 0.05f*static_cast<float>(y - mLastMousePos.y);
+			if((btnState & MK_LBUTTON) != 0)
+			{
+				// Make each pixel correspond to a quarter of a degree.
+				float dx = XMConvertToRadians(0.25f*static_cast<float>(x - mLastMousePos.x));
+				float dy = XMConvertToRadians(0.25f*static_cast<float>(y - mLastMousePos.y));
 
-			// Update the camera radius based on input.
-			mRadius += dx - dy;
-
-			// Restrict the radius.
-			mRadius = MathHelper::Clamp(mRadius, 0.1f, 150.0f);
+				mCamera.Pitch(dy);
+				mCamera.RotateY(dx);
+			}
 		}
 		mLastMousePos.x = x;
 		mLastMousePos.y = y;
@@ -418,22 +438,47 @@ void CreepApp::OnMouseMove(WPARAM btnState, int x, int y)
  
 void CreepApp::OnKeyboardInput(const GameTimer& gt)
 {
+	if(Gui::currentCameraIndex == 1)
+	{
+		const float dt = gt.DeltaTime();
+
+		if(GetAsyncKeyState('W') & 0x8000)
+			mCamera.Walk(10.0f*dt);
+
+		if(GetAsyncKeyState('S') & 0x8000)
+			mCamera.Walk(-10.0f*dt);
+
+		if(GetAsyncKeyState('A') & 0x8000)
+			mCamera.Strafe(-10.0f*dt);
+
+		if(GetAsyncKeyState('D') & 0x8000)
+			mCamera.Strafe(10.0f*dt);
+
+		mCamera.UpdateViewMatrix();
+	}
+	
 }
  
 void CreepApp::UpdateCamera(const GameTimer& gt)
 {
 	// Convert Spherical to Cartesian coordinates.
-	mEyePos.x = mRadius*sinf(mPhi)*cosf(mTheta);
-	mEyePos.z = mRadius*sinf(mPhi)*sinf(mTheta);
-	mEyePos.y = mRadius*cosf(mPhi);
-
+	
+	
 	// Build the view matrix.
-	XMVECTOR pos = XMVectorSet(mEyePos.x, mEyePos.y, mEyePos.z, 1.0f);
-	XMVECTOR target = XMVectorZero();
-	XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+	// XMVECTOR pos = XMVectorSet(mEyePos.x, mEyePos.y, mEyePos.z, 1.0f);
+	// XMVECTOR target = XMVectorZero();
+	// XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
 
-	XMMATRIX view = XMMatrixLookAtLH(pos, target, up);
-	XMStoreFloat4x4(&mView, view);
+	// XMMATRIX view = XMMatrixLookAtLH(pos, target, up);
+	// XMStoreFloat4x4(&mView, view);
+	if(Gui::currentCameraIndex == 0)
+	{
+		float x = mCamera.mRadius*sinf(mCamera.mPhi)*cosf(mCamera.mTheta);
+		float z = mCamera.mRadius*sinf(mCamera.mPhi)*sinf(mCamera.mTheta);
+		float y = mCamera.mRadius*cosf(mCamera.mPhi);
+		mCamera.SetPosition(x,y,z);
+		mCamera.UpdateCommonViewMatrix();
+	}
 }
 
 void CreepApp::AnimateMaterials(const GameTimer& gt)
@@ -493,8 +538,8 @@ void CreepApp::UpdateMaterialCBs(const GameTimer& gt)
 
 void CreepApp::UpdateMainPassCB(const GameTimer& gt)
 {
-	XMMATRIX view = XMLoadFloat4x4(&mView);
-	XMMATRIX proj = XMLoadFloat4x4(&mProj);
+	XMMATRIX view = mCamera.GetView();
+	XMMATRIX proj = mCamera.GetProj();
 
 	XMMATRIX viewProj = XMMatrixMultiply(view, proj);
 	XMMATRIX invView = XMMatrixInverse(get_rvalue_ptr(XMMatrixDeterminant(view)), view);
@@ -507,7 +552,7 @@ void CreepApp::UpdateMainPassCB(const GameTimer& gt)
 	XMStoreFloat4x4(&mMainPassCB.InvProj, XMMatrixTranspose(invProj));
 	XMStoreFloat4x4(&mMainPassCB.ViewProj, XMMatrixTranspose(viewProj));
 	XMStoreFloat4x4(&mMainPassCB.InvViewProj, XMMatrixTranspose(invViewProj));
-	mMainPassCB.EyePosW = mEyePos;
+	mMainPassCB.EyePosW = mCamera.GetPosition3f();
 	mMainPassCB.RenderTargetSize = XMFLOAT2((float)mClientWidth, (float)mClientHeight);
 	mMainPassCB.InvRenderTargetSize = XMFLOAT2(1.0f / mClientWidth, 1.0f / mClientHeight);
 	mMainPassCB.NearZ = 0.1f;
