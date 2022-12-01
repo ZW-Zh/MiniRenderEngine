@@ -9,6 +9,7 @@
 #include "Utility/MeshHelper.h"
 #include <d3d12.h>
 #include <debugapi.h>
+#include <memory>
 #include <string>
 #include <winuser.h>
 #include "Component/Camera.h"
@@ -461,16 +462,6 @@ void CreepApp::OnKeyboardInput(const GameTimer& gt)
  
 void CreepApp::UpdateCamera(const GameTimer& gt)
 {
-	// Convert Spherical to Cartesian coordinates.
-	
-	
-	// Build the view matrix.
-	// XMVECTOR pos = XMVectorSet(mEyePos.x, mEyePos.y, mEyePos.z, 1.0f);
-	// XMVECTOR target = XMVectorZero();
-	// XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
-
-	// XMMATRIX view = XMMatrixLookAtLH(pos, target, up);
-	// XMStoreFloat4x4(&mView, view);
 	if(Gui::currentCameraIndex == 0)
 	{
 		float x = mCamera.mRadius*sinf(mCamera.mPhi)*cosf(mCamera.mTheta);
@@ -579,8 +570,7 @@ void CreepApp::LoadTexAndGeo(int modelIndex)
 		FlushCommandQueue();
 
     	ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
-
-		
+	
 		auto modelTex = std::make_unique<Texture>();
 		
 		wstring modelName = Gui::modelFilePath[modelIndex].substr(8);
@@ -592,7 +582,6 @@ void CreepApp::LoadTexAndGeo(int modelIndex)
         string modelPath = d3dUtil::wstringTostring(wmodelPath);
 		//load texture
 		modelTex->createTexture(md3dDevice.Get());
-		
 		
 		m_Mesh mesh;
 		loadModel(modelPath, mesh);
@@ -670,6 +659,31 @@ void CreepApp::LoadTexAndGeo(int modelIndex)
 			OutputDebugStringA("Failed to load model!");
 			Gui::currentModelIndex = lastModelIndex;
 		}
+		//skybox
+		auto cubeMap = std::make_unique<Texture>();
+		cubeMap->Name = "skyTex";
+		cubeMap->Filename = L"./texture/cubemap.dds";
+		cubeMap->createTexture(md3dDevice.Get());
+		//模型也加载成功了再上传
+		mTextures[cubeMap->Name] = std::move(cubeMap);
+		//uploadtex
+		mTextures["skyTex"]->uploadTex(md3dDevice.Get(), mCommandList.Get());
+
+		CD3DX12_CPU_DESCRIPTOR_HANDLE hDescriptor(mSrvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
+		hDescriptor.Offset(2,mCbvSrvDescriptorSize);//gui，modeltex
+
+		auto cubeTexRes = mTextures["skyTex"]->Resource;
+	
+		D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+		srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+		srvDesc.Format = cubeTexRes->GetDesc().Format;
+		srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBE;
+		srvDesc.Texture2D.MostDetailedMip = 0;
+		srvDesc.Texture2D.MipLevels = cubeTexRes->GetDesc().MipLevels;
+		srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
+
+		md3dDevice->CreateShaderResourceView(cubeTexRes.Get(), &srvDesc, hDescriptor);
+
 		// Execute the initialization commands.
 		ThrowIfFailed(mCommandList->Close());
 		ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
@@ -752,9 +766,18 @@ void CreepApp::BuildDescriptorHeaps()
 
 void CreepApp::BuildShadersAndInputLayout()
 {
+	const D3D_SHADER_MACRO alphaTestDefines[] =
+	{
+		"ALPHA_TEST", "1",
+		NULL, NULL
+	};
+
 	mShaders["standardVS"] = d3dUtil::CompileShader(L"Shader/Default.hlsl", nullptr, "VS", "vs_5_0");
 	mShaders["opaquePS"] = d3dUtil::CompileShader(L"Shader/Default.hlsl", nullptr, "PS", "ps_5_0");
 	
+	mShaders["skyVS"] = d3dUtil::CompileShader(L"Shaders/Sky.hlsl", nullptr, "VS", "vs_5_1");
+	mShaders["skyPS"] = d3dUtil::CompileShader(L"Shaders/Sky.hlsl", nullptr, "PS", "ps_5_1");
+
     mInputLayout =
     {
         { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
@@ -801,6 +824,31 @@ void CreepApp::BuildPSOs()
 	msaaPsoDesc.SampleDesc.Count = 4;
 	
 	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&msaaPsoDesc, IID_PPV_ARGS(&mPSOs["msaa4x"])));
+
+	//
+	// PSO for sky.
+	//
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC skyPsoDesc = opaquePsoDesc;
+
+	// The camera is inside the sky sphere, so just turn off culling.
+	skyPsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+
+	// Make sure the depth function is LESS_EQUAL and not just LESS.  
+	// Otherwise, the normalized depth values at z = 1 (NDC) will 
+	// fail the depth test if the depth buffer was cleared to 1.
+	skyPsoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
+	skyPsoDesc.pRootSignature = mRootSignature.Get();
+	skyPsoDesc.VS =
+	{
+		reinterpret_cast<BYTE*>(mShaders["skyVS"]->GetBufferPointer()),
+		mShaders["skyVS"]->GetBufferSize()
+	};
+	skyPsoDesc.PS =
+	{
+		reinterpret_cast<BYTE*>(mShaders["skyPS"]->GetBufferPointer()),
+		mShaders["skyPS"]->GetBufferSize()
+	};
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&skyPsoDesc, IID_PPV_ARGS(&mPSOs["sky"])));
 }
 
 void CreepApp::BuildFrameResources()
@@ -823,6 +871,16 @@ void CreepApp::BuildMaterials()
 	woodCrate->Roughness = 0.2f;
 
 	mMaterials["woodCrate"] = std::move(woodCrate);
+
+	auto sky = std::make_unique<Material>();
+    sky->Name = "sky";
+    sky->MatCBIndex = 4;
+    sky->DiffuseSrvHeapIndex = 1;
+    sky->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+    sky->FresnelR0 = XMFLOAT3(0.1f, 0.1f, 0.1f);
+    sky->Roughness = 1.0f;
+
+	mMaterials["sky"] = std::move(sky);
 }
 
 void CreepApp::BuildRenderItems()
@@ -860,7 +918,7 @@ void CreepApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::ve
         cmdList->IASetPrimitiveTopology(ri->PrimitiveType);
 
 		CD3DX12_GPU_DESCRIPTOR_HANDLE tex(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
-		tex.Offset(ri->Mat->DiffuseSrvHeapIndex + 1, mCbvSrvDescriptorSize);
+		tex.Offset(ri->Mat->DiffuseSrvHeapIndex + 1, mCbvSrvDescriptorSize);//加1gui占0
 
         D3D12_GPU_VIRTUAL_ADDRESS objCBAddress = objectCB->GetGPUVirtualAddress() + ri->ObjCBIndex*objCBByteSize;
 		D3D12_GPU_VIRTUAL_ADDRESS matCBAddress = matCB->GetGPUVirtualAddress() + ri->Mat->MatCBIndex*matCBByteSize;
