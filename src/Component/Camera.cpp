@@ -276,7 +276,7 @@ void Camera::UpdateViewMatrix()
 void Camera::UpdateCommonViewMatrix()
 {
 	XMVECTOR pos;
-	XMStoreFloat3(&mPosition, pos);
+	pos = XMLoadFloat3(&mPosition);
 	XMVECTOR target = XMVectorZero();
 	XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
 
