@@ -1,5 +1,5 @@
-# CreepEngine
-A MiniRenderEngine to learn DirectX12.
+# MiniRenderEngine
+A MiniRenderEngine to learn DirectX12.Using assimp，xmake，imgui
 # Reference
 Microsolf:Samples： https://github.com/Microsoft/DirectX-Graphics-Samples
 
